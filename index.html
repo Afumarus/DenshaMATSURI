@@ -1,0 +1,1542 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>芝電電車まつりダイヤ Webビューア</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+    .view-panel { display: none; }
+    .view-panel.active { display: block; }
+    .table-container { overflow-x: auto; height: calc(100vh - 180px); border: 1px solid #e2e8f0; border-radius: 0.5rem; background-color: #fff; }
+    table { border-collapse: separate; border-spacing: 0; width: 100%; font-size: 0.875rem; }
+    th { background: #e2e8f0; padding: 8px; border-bottom: 2px solid #cbd5e1; white-space: nowrap; position: sticky; top: 0; z-index: 10; color: #334155; font-weight: 600; text-align: center; }
+    .data-row td { padding: var(--row-padding, 6px) 8px; border-bottom: 1px solid #f1f5f9; text-align: center; vertical-align: middle; transition: background-color 0.1s; }
+    tr:nth-child(even) { background-color: #fafafa; }
+    .data-row:hover { background-color: #f0fdf4; }
+    .row-checked td { opacity: 0.5; background-color: #f1f5f9 !important; text-decoration: line-through; }
+    input[type="checkbox"] { width: 1.25rem; height: 1.25rem; cursor: pointer; accent-color: #2563eb; }
+</style>
+</head>
+<body class="bg-slate-100 p-2 md:p-4 text-slate-800">
+<div class="max-w-7xl mx-auto">
+    <div class="flex flex-col md:flex-row md:items-center justify-between mb-4 gap-3 bg-white p-4 rounded-lg shadow-sm border border-slate-200">
+        <h1 class="text-xl md:text-2xl font-extrabold text-blue-700 tracking-tight">芝電電車まつりダイヤ Webビューア</h1>
+        <div class="flex items-center gap-4 flex-wrap">
+            <div class="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-md border border-slate-200">
+                <span class="text-sm font-medium text-slate-600">行間</span>
+                <input type="range" id="paddingRange" min="2" max="16" value="6" class="w-24 cursor-pointer accent-blue-600">
+            </div>
+            <label class="bg-slate-600 text-white px-4 py-2 rounded-md cursor-pointer hover:bg-slate-700 transition font-medium shadow-sm active:scale-95 flex-shrink-0 text-sm" title="別のダイヤファイルを読み込む場合">
+                別ファイルを開く
+                <input id="fileInput" type="file" class="hidden" accept=".oud2,.oud" />
+            </label>
+        </div>
+    </div>
+
+    <div id="results" class="hidden">
+        <div class="mb-4 bg-white p-3 rounded-lg shadow-sm border border-slate-200 inline-block">
+            <select id="station-select" class="bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-base font-medium text-slate-700 shadow-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 cursor-pointer min-w-[200px]">
+            </select>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+            <!-- 上り -->
+            <div class="flex flex-col">
+                <div class="bg-orange-500 text-white px-4 py-2 rounded-t-lg font-bold shadow-sm flex justify-between items-center">
+                    <span>上り (駅方面)</span>
+                    <span id="nobori-count" class="text-xs bg-orange-700 px-2 py-0.5 rounded-full">0本</span>
+                </div>
+                <div class="table-container shadow-sm rounded-b-lg rounded-t-none">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th class="w-10">確</th>
+                                <th class="w-14">時刻</th>
+                                <th class="w-16">列番</th>
+                                <th class="w-16">種別</th>
+                                <th>行先</th>
+                                <th class="w-12">番線</th>
+                            </tr>
+                        </thead>
+                        <tbody id="nobori-body"></tbody>
+                    </table>
+                </div>
+            </div>
+            <!-- 下り -->
+            <div class="flex flex-col">
+                <div class="bg-blue-600 text-white px-4 py-2 rounded-t-lg font-bold shadow-sm flex justify-between items-center">
+                    <span>下り (港方面)</span>
+                    <span id="kudari-count" class="text-xs bg-blue-800 px-2 py-0.5 rounded-full">0本</span>
+                </div>
+                <div class="table-container shadow-sm rounded-b-lg rounded-t-none">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th class="w-10">確</th>
+                                <th class="w-14">時刻</th>
+                                <th class="w-16">列番</th>
+                                <th class="w-16">種別</th>
+                                <th>行先</th>
+                                <th class="w-12">番線</th>
+                            </tr>
+                        </thead>
+                        <tbody id="kudari-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// 芝電電車まつりダイヤのデータを初期データとして内包
+const defaultDataText = `FileType=OuDiaSecond.1.17
+Rosen.
+Rosenmei=芝電電車まつりダイヤ
+KudariDiaAlias=港方面
+NoboriDiaAlias=駅方面
+Eki.
+Ekimei=芝鷺駅
+Ekijikokukeisiki=Jikokukeisiki_NoboriChaku
+Ekikibo=Ekikibo_Ippan
+DownMain=0
+UpMain=1
+JikokuhyouTrackDisplayKudari=1
+JikokuhyouTrackDisplayNobori=1
+DiagramTrackOmit=0,0,0,0
+EkiTrack2Cont.
+EkiTrack2.
+TrackName=1番線
+TrackRyakusyou=1
+.
+EkiTrack2.
+TrackName=2番線
+TrackRyakusyou=2
+.
+EkiTrack2.
+TrackName=3番線
+TrackRyakusyou=3
+.
+EkiTrack2.
+TrackName=4番線
+TrackRyakusyou=4
+.
+.
+JikokuhyouJikokuDisplayKudari=0,1
+JikokuhyouJikokuDisplayNobori=1,1
+JikokuhyouSyubetsuChangeDisplayKudari=0,0,3,3,1
+JikokuhyouSyubetsuChangeDisplayNobori=0,0,3,3,1
+DiagramColorNextEki=0
+OperationTableDisplayJikoku=1
+JikokuhyouOuterDisplayKudari=0,0
+JikokuhyouOuterDisplayNobori=0,0
+JikokuhyouPrevSyubetsuChangeDisplayKudari=0,0,0,0,1
+JikokuhyouPrevSyubetsuChangeDisplayNobori=0,0,0,0,1
+JikokuhyouNyuusenJikokuDisplayKudari=1
+.
+Eki.
+Ekimei=海老和
+Ekijikokukeisiki=Jikokukeisiki_Hatsuchaku
+Ekikibo=Ekikibo_Syuyou
+DownMain=0
+UpMain=1
+DiagramTrackOmit=0,0,0
+EkiTrack2Cont.
+EkiTrack2.
+TrackName=1番線
+TrackRyakusyou=1
+.
+EkiTrack2.
+TrackName=2番線
+TrackRyakusyou=2
+.
+EkiTrack2.
+TrackName=折返
+TrackRyakusyou=折
+.
+.
+JikokuhyouJikokuDisplayKudari=0,1
+JikokuhyouJikokuDisplayNobori=0,1
+JikokuhyouSyubetsuChangeDisplayKudari=0,0,0,0,1
+JikokuhyouSyubetsuChangeDisplayNobori=0,0,0,0,1
+DiagramColorNextEki=0
+OperationTableDisplayJikoku=1
+JikokuhyouOuterDisplayKudari=0,0
+JikokuhyouOuterDisplayNobori=0,0
+JikokuhyouPrevSyubetsuChangeDisplayKudari=0,0,0,0,1
+JikokuhyouPrevSyubetsuChangeDisplayNobori=0,0,0,0,1
+.
+Eki.
+Ekimei=海老和車庫
+EkimeiJikokuRyaku=海老車庫
+Ekijikokukeisiki=Jikokukeisiki_Hatsu
+Ekikibo=Ekikibo_Ippan
+DownMain=0
+UpMain=1
+DiagramTrackOmit=0,0
+EkiTrack2Cont.
+EkiTrack2.
+TrackName=1番線
+TrackRyakusyou=1
+.
+EkiTrack2.
+TrackName=2番線
+TrackRyakusyou=2
+.
+.
+JikokuhyouTrackOmit=1
+JikokuhyouJikokuDisplayKudari=0,1
+JikokuhyouJikokuDisplayNobori=0,1
+JikokuhyouSyubetsuChangeDisplayKudari=0,0,0,0,1
+JikokuhyouSyubetsuChangeDisplayNobori=0,0,0,0,1
+DiagramColorNextEki=0
+JikokuhyouOuterDisplayKudari=0,0
+JikokuhyouOuterDisplayNobori=0,0
+JikokuhyouPrevSyubetsuChangeDisplayKudari=0,0,0,0,1
+JikokuhyouPrevSyubetsuChangeDisplayNobori=0,0,0,0,1
+.
+Eki.
+Ekimei=入江浜口
+Ekijikokukeisiki=Jikokukeisiki_Hatsuchaku
+Ekikibo=Ekikibo_Ippan
+DownMain=0
+UpMain=1
+DiagramTrackOmit=0,0,0
+EkiTrack2Cont.
+EkiTrack2.
+TrackName=1番線
+TrackRyakusyou=1
+.
+EkiTrack2.
+TrackName=2番線
+TrackRyakusyou=2
+.
+EkiTrack2.
+TrackName=折返入換
+TrackRyakusyou=折
+.
+.
+JikokuhyouJikokuDisplayKudari=0,1
+JikokuhyouJikokuDisplayNobori=1,1
+JikokuhyouSyubetsuChangeDisplayKudari=0,0,0,0,1
+JikokuhyouSyubetsuChangeDisplayNobori=0,0,0,0,1
+DiagramColorNextEki=0
+JikokuhyouOuterDisplayKudari=0,0
+JikokuhyouOuterDisplayNobori=0,0
+JikokuhyouPrevSyubetsuChangeDisplayKudari=0,0,0,0,1
+JikokuhyouPrevSyubetsuChangeDisplayNobori=0,0,0,0,1
+.
+Eki.
+Ekimei=芝鷺港
+Ekijikokukeisiki=Jikokukeisiki_KudariChaku
+Ekikibo=Ekikibo_Syuyou
+DownMain=0
+UpMain=0
+DiagramTrackOmit=0,0,0
+EkiTrack2Cont.
+EkiTrack2.
+TrackName=1番線
+TrackRyakusyou=1
+.
+EkiTrack2.
+TrackName=2番線
+TrackRyakusyou=2
+.
+EkiTrack2.
+TrackName=3番線
+TrackRyakusyou=3
+.
+.
+JikokuhyouJikokuDisplayKudari=1,1
+JikokuhyouJikokuDisplayNobori=0,1
+JikokuhyouSyubetsuChangeDisplayKudari=0,0,0,0,1
+JikokuhyouSyubetsuChangeDisplayNobori=0,0,0,0,1
+DiagramColorNextEki=0
+JikokuhyouOuterDisplayKudari=0,0
+JikokuhyouOuterDisplayNobori=0,0
+JikokuhyouPrevSyubetsuChangeDisplayKudari=0,0,0,0,1
+JikokuhyouPrevSyubetsuChangeDisplayNobori=0,0,0,0,1
+.
+Ressyasyubetsu.
+Syubetsumei=普通
+Ryakusyou=普通
+JikokuhyouMojiColor=00000000
+JikokuhyouFontIndex=0
+JikokuhyouBackColor=00FFFFFF
+DiagramSenColor=00000000
+DiagramSenStyle=SenStyle_Jissen
+StopMarkDrawType=EStopMarkDrawType_DrawOnStop
+.
+Ressyasyubetsu.
+Syubetsumei=臨時
+Ryakusyou=臨時
+JikokuhyouMojiColor=00000000
+JikokuhyouFontIndex=0
+JikokuhyouBackColor=00FFFFFF
+DiagramSenColor=00000000
+DiagramSenStyle=SenStyle_Hasen
+StopMarkDrawType=EStopMarkDrawType_DrawOnStop
+.
+Ressyasyubetsu.
+Syubetsumei=快速臨時
+Ryakusyou=快臨
+JikokuhyouMojiColor=000000FF
+JikokuhyouFontIndex=0
+JikokuhyouBackColor=00FFFFFF
+DiagramSenColor=000000FF
+DiagramSenStyle=SenStyle_Hasen
+StopMarkDrawType=EStopMarkDrawType_DrawOnStop
+.
+Ressyasyubetsu.
+Syubetsumei=貸切/回送
+Ryakusyou=貸回
+JikokuhyouMojiColor=00FF0000
+JikokuhyouFontIndex=0
+JikokuhyouBackColor=00FFFFFF
+DiagramSenColor=00FF0000
+DiagramSenStyle=SenStyle_Hasen
+StopMarkDrawType=EStopMarkDrawType_DrawOnStop
+.
+Dia.
+DiaName=シンプルダイヤ
+MainBackColorIndex=0
+SubBackColorIndex=1
+BackPatternIndex=0
+PatternDiagramPreviewCycleSecond=600
+Kudari.
+Ressya.
+Houkou=Kudari
+Syubetsu=0
+Ressyabangou=1002
+EkiJikoku=,1;1402$0,1;1401$0,1;1407$0,1;1415/$0
+Operation1B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=1
+Ressyabangou=1102
+EkiJikoku=,1;1408$0,1;1407$0,1;1413/$2
+Operation1B=5/$
+Operation3A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=0
+Ressyabangou=1004
+EkiJikoku=,1;1417$0,1;1416$0,1;1422$0,1;1430/$1
+Operation1B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=1
+Ressyabangou=1104
+EkiJikoku=,1;1421$0,1;1420$0,1;1426/$2
+Operation1B=5/$
+Operation3A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=0
+Ressyabangou=1006
+EkiJikoku=1;1422$0,1;1437$0,2$0,1;1442$0,1;1450/$0
+Operation0B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=1
+Ressyabangou=1108
+EkiJikoku=1;1424$2,1;1439/$2
+Operation0B=5/$
+Operation1A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=2
+Ressyabangou=1200
+EkiJikoku=1;1426$3,2$0,1;1442/$0
+Operation0B=5/$
+Operation2A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=2
+Ressyabangou=1202
+EkiJikoku=1;1428$1,2$0,1;1443/$0
+Operation0B=5/$
+Operation2A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=3
+Ressyabangou=1322
+EkiJikoku=,1;1445$0,1;1444$0,1;1450/1450$0,1;1458/$0
+Operation1B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=1
+Ressyabangou=1110
+EkiJikoku=1;1432$1,1;1447$0,1;1448/$0
+Operation0B=5/$
+Operation2A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=1
+Ressyabangou=1112
+EkiJikoku=1;1435$2,1;1450/1450$0,2$0,1;1455/$2
+Operation0B=5/$
+Operation3A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=1
+Ressyabangou=1114
+EkiJikoku=1;1438$1,1;1453/$2
+Operation0B=5/$
+Operation1A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=0
+Ressyabangou=1006
+EkiJikoku=1;1442$0,1;1457$0,2$0,1;1502$0,1;1510/$1
+Operation0B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=1
+Ressyabangou=1116
+EkiJikoku=1;1443$2,1;1459/$2
+Operation0B=5/$
+Operation1A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=2
+Ressyabangou=1204
+EkiJikoku=1;1445$3,2$0,1;1500/$0
+Operation0B=5/$
+Operation2A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=1
+Ressyabangou=1118
+EkiJikoku=1;1447$1,1;1502$0,1;1503/$0
+Operation0B=5/$
+Operation2A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=1
+Ressyabangou=1120
+EkiJikoku=1;1450$2,1;1505/1505$0,2$0,1;1510/$2
+Operation0B=5/$
+Operation3A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=1
+Ressyabangou=1122
+EkiJikoku=1;1453$1,1;1508/$2
+Operation0B=5/$
+Operation1A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=0
+Ressyabangou=1010
+EkiJikoku=1;1457$0,1;1512$0,2$0,1;1517$0,1;1525/$0
+Operation0B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=1
+Ressyabangou=1124
+EkiJikoku=1;1458$2,1;1515/$2
+Operation0B=5/$
+Operation1A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=1
+Ressyabangou=1126
+EkiJikoku=1;1502$1,1;1517$0,1;1518/$0
+Operation0B=5/$
+Operation2A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=1
+Ressyabangou=1128
+EkiJikoku=1;1505$2,1;1520/1520$0,2$0,1;1525/$2
+Operation0B=5/$
+Operation3A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=1
+Ressyabangou=1130
+EkiJikoku=1;1508$1,1;1523/$2
+Operation0B=5/$
+Operation1A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=0
+Ressyabangou=1012
+EkiJikoku=1;1512$0,1;1527$0,2$0,1;1532$0,1;1540/$1
+Operation0B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=1
+Ressyabangou=1132
+EkiJikoku=1;1513$2,1;1530/$2
+Operation0B=5/$
+Operation1A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=1
+Ressyabangou=1134
+EkiJikoku=1;1517$1,1;1532$0,1;1533/$0
+Operation0B=5/$
+Operation2A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=1
+Ressyabangou=1136
+EkiJikoku=1;1520$2,1;1535/1535$0,2$0,1;1540/$2
+Operation0B=5/$
+Operation3A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=1
+Ressyabangou=1138
+EkiJikoku=1;1523$1,1;1538/$2
+Operation0B=5/$
+Operation1A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=3
+Ressyabangou=1382
+EkiJikoku=1;1525$3,1;1531/1531$0,1;1532/$0
+Operation0B=5/$
+Operation2A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=0
+Ressyabangou=1014
+EkiJikoku=1;1527$0,1;1542$0,2$0,1;1547$0,1;1555/$0
+Operation0B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=1
+Ressyabangou=1140
+EkiJikoku=1;1528$2,1;1545/$2
+Operation0B=5/$
+Operation1A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=1
+Ressyabangou=1142
+EkiJikoku=1;1532$1,1;1547$0,1;1548/$0
+Operation0B=5/$
+Operation2A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=1
+Ressyabangou=1144
+EkiJikoku=1;1535$2,1;1550/1550$0,2$0,1;1555/$2
+Operation0B=5/$
+Operation3A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=1
+Ressyabangou=1146
+EkiJikoku=1;1538$1,1;1553/$2
+Operation0B=5/$
+Operation1A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=0
+Ressyabangou=1016
+EkiJikoku=1;1542$0,1;1557$0,2$0,1;1602$0,1;1610/$1
+Operation0B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=1
+Ressyabangou=1148
+EkiJikoku=1;1543$2,1;1600/$2
+Operation0B=5/$
+Operation1A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=1
+Ressyabangou=1150
+EkiJikoku=1;1547$1,1;1602$0,1;1603/$0
+Operation0B=5/$
+Operation2A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=1
+Ressyabangou=1152
+EkiJikoku=1;1550$2,1;1605/1605$0,2$0,1;1610/$2
+Operation0B=5/$
+Operation3A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=1
+Ressyabangou=1154
+EkiJikoku=1;1553$1,1;1608/$2
+Operation0B=5/$
+Operation1A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=0
+Ressyabangou=1018
+EkiJikoku=1;1557$0,1;1612$0,2$0,1;1617$0,1;1625/$0
+Operation0B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=1
+Ressyabangou=1156
+EkiJikoku=1;1558$2,1;1615/$2
+Operation0B=5/$
+Operation1A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=1
+Ressyabangou=1158
+EkiJikoku=1;1602$1,1;1617$0,1;1618/$0
+Operation0B=5/$
+Operation2A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=1
+Ressyabangou=1160
+EkiJikoku=1;1605$2,1;1620/1620$0,2$0,1;1625/$2
+Operation0B=5/$
+Operation3A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=1
+Ressyabangou=1162
+EkiJikoku=1;1608$1,1;1623/$2
+Operation0B=5/$
+Operation1A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=0
+Ressyabangou=1020
+EkiJikoku=1;1612$0,1;1627$0,2$0,1;1632$0,1;1640/$1
+Operation0B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=1
+Ressyabangou=1164
+EkiJikoku=1;1613$2,1;1630/$2
+Operation0B=5/$
+Operation1A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=1
+Ressyabangou=1166
+EkiJikoku=1;1617$1,1;1632$0,1;1633/$0
+Operation0B=5/$
+Operation2A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=1
+Ressyabangou=1168
+EkiJikoku=1;1620$2,1;1635/1635$0,2$0,1;1640/$2
+Operation0B=5/$
+Operation3A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=1
+Ressyabangou=1170
+EkiJikoku=1;1623$1,1;1638/$2
+Operation0B=5/$
+Operation1A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=0
+Ressyabangou=1022
+EkiJikoku=1;1627$0,1;1642$0,2$0,1;1647$0,1;1655/$0
+Operation0B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=1
+Ressyabangou=1172
+EkiJikoku=1;1628$2,1;1645/$2
+Operation0B=5/$
+Operation1A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=3
+Ressyabangou=1301
+EkiJikoku=1;1629$3,1;1644/1644$0,1;1645/$0
+Operation0B=5/$
+Operation2A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=1
+Ressyabangou=1174
+EkiJikoku=1;1632$1,1;1647/1647$0,1;1648/$0
+Operation0B=5/$
+Operation2A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=1
+Ressyabangou=1176
+EkiJikoku=1;1635$2,1;1650/1650$0,1;1651/$0
+Operation0B=5/$
+Operation2A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=1
+Ressyabangou=1178
+EkiJikoku=1;1638$1,1;1653/1653$0,1;1654/$0
+Operation0B=5/$
+Operation2A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=3
+Ressyabangou=1303
+EkiJikoku=1;1640$3,1;1655/1655$0,1;1656/$0
+Operation0B=5/$
+Operation2A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=0
+Ressyabangou=1024
+EkiJikoku=1;1642$0,1;1657$0,2$0,1;1702$0,1;1710/$1
+Operation0B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=1
+Ressyabangou=1180
+EkiJikoku=1;1643$2,1;1700/1700$0,1;1701/$0
+Operation0B=5/$
+Operation2A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=1
+Ressyabangou=1182
+EkiJikoku=1;1647$1,1;1702$0,1;1703/$0
+Operation0B=5/$
+Operation2A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=1
+Ressyabangou=1184
+EkiJikoku=1;1650$2,1;1705/1705$0,1;1706/$0
+Operation0B=5/$
+Operation2A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=1
+Ressyabangou=1186
+EkiJikoku=1;1653$1,1;1708/1708$0,1;1709/$0
+Operation0B=5/$
+Operation2A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=0
+Ressyabangou=1026
+EkiJikoku=1;1657$0,1;1712$0,1;1713/$0
+Operation0B=5/$
+Operation2A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=1
+Ressyabangou=1188
+EkiJikoku=1;1658$2,1;1715/1715$0,1;1717/$0
+Operation0B=5/$
+Operation2A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=1
+Ressyabangou=1190
+EkiJikoku=1;1702$1,1;1717$0,1;1718/$0
+Operation0B=5/$
+Operation2A=5/$0
+.
+Ressya.
+Houkou=Kudari
+Syubetsu=1
+Ressyabangou=1192
+EkiJikoku=1;1705$2,1;1720/1720$0,1;1721/$0
+Operation0B=5/$
+Operation2A=5/$0
+.
+.
+Nobori.
+Ressya.
+Houkou=Nobori
+Syubetsu=0
+Ressyabangou=1001
+EkiJikoku=,,1;1359$1,1;1400$1,1;1415/$0
+Operation2B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Nobori
+Syubetsu=1
+Ressyabangou=1101
+EkiJikoku=,,1;1403$1,1;1404$1,1;1420/$2
+Operation2B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Nobori
+Syubetsu=3
+Ressyabangou=1301
+EkiJikoku=,,1;1404$1,1;1405$1,1;1421/$3
+Operation2B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Nobori
+Syubetsu=1
+Ressyabangou=1103
+EkiJikoku=,,,,1;1422/$1
+Operation2B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Nobori
+Syubetsu=1
+Ressyabangou=1105
+EkiJikoku=,,1;1409$1,1;1410$1,1;1425/$2
+Operation2B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Nobori
+Syubetsu=1
+Ressyabangou=1107
+EkiJikoku=,,1;1412$1,1;1413$1,1;1428/$1
+Operation2B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Nobori
+Syubetsu=0
+Ressyabangou=1003
+EkiJikoku=,,1;1414$1,1;1415$1,1;1430/$0
+Operation2B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Nobori
+Syubetsu=3
+Ressyabangou=1303
+EkiJikoku=,,1;1418$1,1;1419$1,1;1434/$3
+Operation2B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Nobori
+Syubetsu=1
+Ressyabangou=1109
+EkiJikoku=,,1;1422$1,1;1423$1,1;1438/$2
+Operation2B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Nobori
+Syubetsu=1
+Ressyabangou=1111
+EkiJikoku=,1;1420$2,2$1,1;1425$1,1;1440/$1
+Operation1B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Nobori
+Syubetsu=1
+Ressyabangou=1113
+EkiJikoku=,,1;1429$1,1;1430$1,1;1445/$2
+Operation2B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Nobori
+Syubetsu=1
+Ressyabangou=1115
+EkiJikoku=,1;1428$2,2$1,1;1434$1,1;1449/$1
+Operation1B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Nobori
+Syubetsu=0
+Ressyabangou=1007
+EkiJikoku=1;1425$0,1;1433/1433$1,2$1,1;1437$1,1;1452/$0
+Operation0B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Nobori
+Syubetsu=1
+Ressyabangou=1117
+EkiJikoku=,,1;1438$1,1;1439$1,1;1454/$2
+Operation2B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Nobori
+Syubetsu=1
+Ressyabangou=1119
+EkiJikoku=,,,1;1442/1443$2,1;1458/$1
+Operation3B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Nobori
+Syubetsu=1
+Ressyabangou=1121
+EkiJikoku=,,1;1444$1,1;1445/1445$1,1;1500/$2
+Operation2B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Nobori
+Syubetsu=1
+Ressyabangou=1123
+EkiJikoku=,,1;1447$1,1;1448/1448$1,1;1503/$1
+Operation2B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Nobori
+Syubetsu=0
+Ressyabangou=1009
+EkiJikoku=1;1440$1,1;1448/1448$1,2$1,1;1452$1,1;1507/$0
+Operation0B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Nobori
+Syubetsu=1
+Ressyabangou=1125
+EkiJikoku=,,,1;1454/1455$2,1;1510/$2
+Operation3B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Nobori
+Syubetsu=1
+Ressyabangou=1127
+EkiJikoku=,,1;1457$1,1;1458/1458$1,1;1513/$1
+Operation2B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Nobori
+Syubetsu=3
+Ressyabangou=1381
+EkiJikoku=,,1;1458$1,1;1459/1459$1,1;1515/$3
+Operation2B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Nobori
+Syubetsu=1
+Ressyabangou=1129
+EkiJikoku=,,,1;1501/1502$2,1;1517/$2
+Operation3B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Nobori
+Syubetsu=1
+Ressyabangou=1131
+EkiJikoku=,1;1501$2,2$1,1;1505/1505$1,1;1520/$1
+Operation1B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Nobori
+Syubetsu=0
+Ressyabangou=1011
+EkiJikoku=1;1455$0,1;1503/1503$1,2$1,1;1507$1,1;1522/$0
+Operation0B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Nobori
+Syubetsu=1
+Ressyabangou=1133
+EkiJikoku=,,,1;1509/1510$2,1;1525/$2
+Operation3B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Nobori
+Syubetsu=1
+Ressyabangou=1135
+EkiJikoku=,,1;1512$1,1;1513/1513$1,1;1528/$1
+Operation2B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Nobori
+Syubetsu=1
+Ressyabangou=1137
+EkiJikoku=,,,1;1516/1517$2,1;1532/$2
+Operation3B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Nobori
+Syubetsu=1
+Ressyabangou=1139
+EkiJikoku=,1;1516$2,2$1,1;1520/1520$1,1;1535/$1
+Operation1B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Nobori
+Syubetsu=0
+Ressyabangou=1013
+EkiJikoku=1;1510$0,1;1518/1518$1,2$1,1;1522$1,1;1537/$0
+Operation0B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Nobori
+Syubetsu=1
+Ressyabangou=1141
+EkiJikoku=,,,1;1524/1525$2,1;1540/$2
+Operation3B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Nobori
+Syubetsu=1
+Ressyabangou=1143
+EkiJikoku=,,1;1527$1,1;1528/1528$1,1;1543/$1
+Operation2B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Nobori
+Syubetsu=1
+Ressyabangou=1145
+EkiJikoku=,,,1;1531/1532$2,1;1547/$2
+Operation3B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Nobori
+Syubetsu=1
+Ressyabangou=1147
+EkiJikoku=,1;1531$2,2$1,1;1535/1535$1,1;1550/$1
+Operation1B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Nobori
+Syubetsu=0
+Ressyabangou=1015
+EkiJikoku=1;1525$1,1;1533/1533$1,2$1,1;1537$1,1;1552/$0
+Operation0B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Nobori
+Syubetsu=1
+Ressyabangou=1149
+EkiJikoku=,,,1;1539/1540$2,1;1555/$2
+Operation3B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Nobori
+Syubetsu=1
+Ressyabangou=1151
+EkiJikoku=,,1;1542$1,1;1543/1543$1,1;1558/$1
+Operation2B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Nobori
+Syubetsu=1
+Ressyabangou=1153
+EkiJikoku=,,,1;1546/1547$2,1;1602/$2
+Operation3B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Nobori
+Syubetsu=1
+Ressyabangou=1155
+EkiJikoku=,1;1546$2,2$1,1;1550/1550$1,1;1605/$1
+Operation1B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Nobori
+Syubetsu=0
+Ressyabangou=1017
+EkiJikoku=1;1540$0,1;1548/1548$1,2$1,1;1552$1,1;1607/$0
+Operation0B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Nobori
+Syubetsu=1
+Ressyabangou=1157
+EkiJikoku=,,,1;1554/1555$2,1;1610/$2
+Operation3B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Nobori
+Syubetsu=1
+Ressyabangou=1159
+EkiJikoku=,,1;1557$1,1;1558/1558$1,1;1613/$1
+Operation2B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Nobori
+Syubetsu=1
+Ressyabangou=1161
+EkiJikoku=,,,1;1601/1602$2,1;1617/$2
+Operation3B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Nobori
+Syubetsu=1
+Ressyabangou=1163
+EkiJikoku=,1;1601$2,2$1,1;1605/1605$1,1;1620/$1
+Operation1B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Nobori
+Syubetsu=0
+Ressyabangou=1019
+EkiJikoku=1;1555$1,1;1603/1603$1,2$1,1;1607$1,1;1622/$0
+Operation0B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Nobori
+Syubetsu=1
+Ressyabangou=1165
+EkiJikoku=,,,1;1609/1610$2,1;1625/$2
+Operation3B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Nobori
+Syubetsu=2
+Ressyabangou=1201
+EkiJikoku=,,1;1610$1,1;1611/1611$1,1;1626/$3
+Operation2B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Nobori
+Syubetsu=1
+Ressyabangou=1167
+EkiJikoku=,,1;1612$1,1;1613/1613$1,1;1628/$1
+Operation2B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Nobori
+Syubetsu=2
+Ressyabangou=1203
+EkiJikoku=,,1;1615$1,1;1616/1616$1,1;1630/$3
+Operation2B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Nobori
+Syubetsu=1
+Ressyabangou=1169
+EkiJikoku=,,,1;1616/1617$2,1;1632/$2
+Operation3B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Nobori
+Syubetsu=1
+Ressyabangou=1171
+EkiJikoku=,1;1616$2,2$1,1;1620/1620$1,1;1635/$1
+Operation1B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Nobori
+Syubetsu=0
+Ressyabangou=1021
+EkiJikoku=1;1610$0,1;1618/1618$1,2$1,1;1622$1,1;1637/$0
+Operation0B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Nobori
+Syubetsu=1
+Ressyabangou=1173
+EkiJikoku=,,,1;1624/1625$2,1;1640/$2
+Operation3B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Nobori
+Syubetsu=1
+Ressyabangou=1175
+EkiJikoku=,,1;1627$1,1;1628/1628$1,1;1643/$1
+Operation2B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Nobori
+Syubetsu=1
+Ressyabangou=1177
+EkiJikoku=,,,1;1631/1632$2,1;1647/$2
+Operation3B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Nobori
+Syubetsu=1
+Ressyabangou=1179
+EkiJikoku=,1;1631$2,2$1,1;1635/1635$1,1;1650/$1
+Operation1B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Nobori
+Syubetsu=0
+Ressyabangou=1023
+EkiJikoku=1;1625$1,1;1633/1633$1,2$1,1;1637$1,1;1652/$0
+Operation0B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Nobori
+Syubetsu=1
+Ressyabangou=1181
+EkiJikoku=,,,1;1639/1640$2,1;1655/$2
+Operation3B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Nobori
+Syubetsu=1
+Ressyabangou=1183
+EkiJikoku=,,1;1642$1,1;1643/1643$1,1;1658/$1
+Operation2B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Nobori
+Syubetsu=1
+Ressyabangou=1185
+EkiJikoku=,,,1;1646/1647$2,1;1702/$2
+Operation3B=5/$
+Operation4A=5/$0
+.
+Ressya.
+Houkou=Nobori
+Syubetsu=3
+Ressyabangou=1321
+EkiJikoku=,1;1643$2,1;1649/1649$1,1;1648/$1
+Operation1B=5/$
+Operation3A=5/$0
+.
+Ressya.
+Houkou=Nobori
+Syubetsu=0
+Ressyabangou=1025
+EkiJikoku=1;1640$0,1;1648/1648$1,1;1654$1,1;1653/$1
+Operation0B=5/$
+Operation3A=5/$0
+.
+Ressya.
+Houkou=Nobori
+Syubetsu=0
+Ressyabangou=1027
+EkiJikoku=1;1655$1,1;1703/1703$1,1;1709$1,1;1708/$1
+Operation0B=5/$
+Operation3A=5/$0
+.
+.
+.`;
+
+let data = null;
+
+const paddingInput = document.getElementById('paddingRange');
+paddingInput.oninput = () => {
+    document.documentElement.style.setProperty('--row-padding', paddingInput.value + 'px');
+};
+
+// ページ読み込み時に初期データを表示
+window.addEventListener('DOMContentLoaded', () => {
+    try {
+        data = parseOuDia(defaultDataText);
+        const sel = document.getElementById('station-select');
+        sel.innerHTML = data.stations.map((s, i) => `<option value="${i}">${s.name}</option>`).join('');
+        sel.onchange = renderAll;
+        document.getElementById('results').classList.remove('hidden');
+        renderAll();
+    } catch(err) {
+        console.error(err);
+        alert('初期データの読み込みに失敗しました。');
+    }
+});
+
+// ファイル選択時の動作（別ファイル読み込み用として一応残す）
+document.getElementById('fileInput').onchange = e => {
+    if (!e.target.files.length) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+        try {
+            data = parseOuDia(ev.target.result);
+            const sel = document.getElementById('station-select');
+            sel.innerHTML = data.stations.map((s, i) => `<option value="${i}">${s.name}</option>`).join('');
+            sel.onchange = renderAll;
+            document.getElementById('results').classList.remove('hidden');
+            renderAll();
+        } catch(err) { 
+            console.error(err);
+            alert('読み込みに失敗しました。ファイル形式を確認してください。'); 
+        }
+    };
+    reader.readAsText(e.target.files[0], 'Shift_JIS');
+};
+
+function formatTime(timeStr) {
+    if (!timeStr) return '';
+    
+    // 着発時刻が併記されている場合 (例: 1000/1002)
+    let targetStr = timeStr;
+    if (timeStr.includes('/')) {
+        const parts = timeStr.split('/');
+        // 発時刻(後者)が存在すればそれを、なければ着時刻(前者)を採用
+        targetStr = parts[1] || parts[0];
+    }
+    
+    if (targetStr.includes(':')) return targetStr;
+    
+    // 数字のみかチェック
+    if (!/^\d+$/.test(targetStr)) return targetStr;
+    
+    // 長さに応じてコロンを挿入 (例: 900 -> 09:00, 1000 -> 10:00)
+    let formatted = targetStr;
+    if (formatted.length === 3) formatted = '0' + formatted.slice(0, 1) + ':' + formatted.slice(1);
+    else if (formatted.length === 4) formatted = formatted.slice(0, 2) + ':' + formatted.slice(2);
+    
+    return formatted;
+}
+
+function parseOuDia(text) {
+    const lines = text.split(/\r?\n/);
+    let stations = [], trains = [], syubetsuList = [], block = "", curT = null, curS = null;
+    let currentDirection = 'Kudari';
+    
+    for(let line of lines) {
+        if(line === 'Eki.') { block = 'Eki'; continue; }
+        if(line === 'Ressyasyubetsu.') { block = 'Syubetsu'; curS = { name: '', color: '#000000' }; continue; }
+        if(line === 'Kudari.') { currentDirection = 'Kudari'; continue; }
+        if(line === 'Nobori.') { currentDirection = 'Nobori'; continue; }
+        
+        if(line === 'Ressya.') { 
+            block = 'Ressya'; 
+            curT = { sdMap: {}, number: '-', yukisaki: '', houkou: currentDirection, syubetsuIdx: 0 }; 
+            continue; 
+        }
+        if(line === '.') { 
+            if(block === 'Ressya' && curT) trains.push(curT);
+            else if(block === 'Syubetsu' && curS) syubetsuList.push(curS);
+            block = ""; 
+            continue; 
+        }
+
+        if(block === 'Eki' && line.startsWith('Ekimei=')) {
+            stations.push({name: line.split('=')[1]});
+        }
+        else if(block === 'Syubetsu') {
+            if(line.startsWith('Syubetsumei=')) {
+                curS.name = line.split('=')[1];
+            }
+            else if(line.startsWith('JikokuhyouMojiColor=')) {
+                // OuDiaのカラーコードは "00BBGGRR" の形式
+                let c = line.split('=')[1];
+                if(c.length >= 8) {
+                    let bb = c.slice(2, 4);
+                    let gg = c.slice(4, 6);
+                    let rr = c.slice(6, 8);
+                    curS.color = `#${rr}${gg}${bb}`;
+                }
+            }
+        }
+        else if(block === 'Ressya') {
+            if(line.startsWith('Syubetsu=')) curT.syubetsuIdx = parseInt(line.split('=')[1], 10);
+            else if(line.startsWith('Ressyabangou=')) curT.number = line.split('=')[1];
+            else if(line.startsWith('Yukisaki=')) curT.yukisaki = line.split('=')[1];
+            else if(line.startsWith('Houkou=')) curT.houkou = line.split('=')[1];
+            else if(line.startsWith('EkiJikoku=')) {
+                const jikokus = line.split('=')[1].split(',');
+                jikokus.forEach((d, i) => {
+                    if(d && d.includes(';')) {
+                        const parts = d.split(';');
+                        const timeData = parts[1];
+                        if (timeData) {
+                            const timeStr = timeData.split('$')[0];
+                            const track = timeData.split('$')[1] || '';
+                            const formattedTime = formatTime(timeStr);
+                            if (formattedTime) {
+                                // 上りの場合は駅のインデックスを反転させる
+                                const stationIdx = (curT.houkou === 'Nobori') ? (stations.length - 1 - i) : i;
+                                curT.sdMap[stationIdx] = { hatsu: formattedTime, track: track };
+                            }
+                        }
+                    }
+                });
+            }
+        }
+    }
+
+    // 行先の名前変換と自動補完処理
+    trains.forEach(t => {
+        let terminalName = '';
+        
+        if (t.yukisaki !== '') {
+            const termIdx = parseInt(t.yukisaki, 10);
+            if (!isNaN(termIdx) && stations[termIdx]) {
+                terminalName = stations[termIdx].name;
+            } else {
+                terminalName = t.yukisaki; 
+            }
+        }
+        
+        if (!terminalName) {
+            const indices = Object.keys(t.sdMap).map(Number).sort((a, b) => a - b);
+            if (indices.length > 0) {
+                const targetIdx = (t.houkou === 'Nobori') ? indices[0] : indices[indices.length - 1];
+                if (stations[targetIdx]) {
+                    terminalName = stations[targetIdx].name;
+                }
+            }
+        }
+        
+        t.terminal = terminalName || '不明';
+    });
+
+    return { stations, trains, syubetsuList };
+}
+
+function renderTable(direction, bodyId, countId) {
+    const idx = parseInt(document.getElementById('station-select').value);
+    const body = document.getElementById(bodyId);
+    body.innerHTML = '';
+    const events = [];
+    
+    data.trains.forEach(t => {
+        if(t.houkou !== direction) return;
+        const sd = t.sdMap[idx];
+        if(!sd) return;
+        
+        const syubetsu = data.syubetsuList[t.syubetsuIdx] || { name: '普通', color: '#000000' };
+        
+        events.push({ 
+            time: sd.hatsu, 
+            number: t.number, 
+            syubetsuName: syubetsu.name,
+            syubetsuColor: syubetsu.color,
+            terminal: t.terminal, 
+            track: sd.track 
+        });
+    });
+    
+    const sortedEvents = events.filter(e => e.time).sort((a, b) => {
+        const timeA = parseInt(a.time.replace(':', ''), 10);
+        const timeB = parseInt(b.time.replace(':', ''), 10);
+        return timeA - timeB;
+    });
+
+    document.getElementById(countId).textContent = sortedEvents.length + '本';
+
+    sortedEvents.forEach(ev => {
+        const tr = document.createElement('tr');
+        tr.className = 'data-row';
+        tr.innerHTML = `<td><input type="checkbox" onchange="this.closest('tr').classList.toggle('row-checked', this.checked)"></td>
+                        <td class="font-bold text-slate-800 text-base">${ev.time}</td>
+                        <td class="text-slate-500 font-medium">${ev.number}</td>
+                        <td class="font-bold text-xs" style="color: ${ev.syubetsuColor};">${ev.syubetsuName}</td>
+                        <td class="text-slate-700 font-bold">${ev.terminal}</td>
+                        <td class="text-slate-500 font-bold">${ev.track || '-'}</td>`;
+        body.appendChild(tr);
+    });
+}
+
+function renderAll() {
+    renderTable('Nobori', 'nobori-body', 'nobori-count');
+    renderTable('Kudari', 'kudari-body', 'kudari-count');
+}
+</script>
+</body>
+</html>
