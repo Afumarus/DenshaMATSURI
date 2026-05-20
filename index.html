@@ -1,4 +1,3 @@
-HTML
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -22,9 +21,6 @@ HTML
     .diagram-container { overflow: hidden; height: calc(100vh - 300px); border: 1px solid #e2e8f0; border-radius: 0.5rem; background-color: #fff; position: relative; }
     #diagram-canvas { cursor: grab; display: block; width: 100%; height: 100%; }
     #diagram-canvas:active { cursor: grabbing; }
-
-    /* 短冊（ストリップ）用のカスタムスクロールバー */
-    .strip-container { height: calc(100vh - 250px); overflow-y: auto; }
 </style>
 </head>
 <body class="bg-slate-100 p-2 md:p-4 text-slate-800">
@@ -45,7 +41,7 @@ HTML
                 <button id="col-pad-inc" class="px-2 py-0.5 bg-white border border-slate-300 rounded hover:bg-slate-100 active:bg-slate-200 text-slate-600 select-none">▷</button>
             </div>
             <label class="bg-slate-600 text-white px-4 py-2 rounded-md cursor-pointer hover:bg-slate-700 transition font-medium shadow-sm active:scale-95 flex-shrink-0 text-sm" title="別のダイヤファイルを読み込む場合">
-                OuDiaを開く
+                別ファイルを開く
                 <input id="fileInput" type="file" class="hidden" accept=".oud2,.oud" />
             </label>
         </div>
@@ -53,10 +49,10 @@ HTML
 
     <div id="results" class="hidden">
         
-        <div class="flex border-b border-slate-300 mb-4 bg-white px-2 pt-2 rounded-t-lg shadow-sm overflow-x-auto">
-            <button id="tab-timetable" class="px-4 py-2 border-b-2 border-blue-600 text-blue-600 font-bold outline-none transition-colors select-none whitespace-nowrap">時刻表</button>
-            <button id="tab-diagram" class="px-4 py-2 border-b-2 border-transparent text-slate-500 hover:text-slate-700 font-medium outline-none transition-colors select-none whitespace-nowrap">ダイヤグラム</button>
-            <button id="tab-unyo" class="px-4 py-2 border-b-2 border-transparent text-slate-500 hover:text-slate-700 font-medium outline-none transition-colors select-none whitespace-nowrap">運用表 (スタフ)</button>
+        <!-- タブ切り替え -->
+        <div class="flex border-b border-slate-300 mb-4 bg-white px-2 pt-2 rounded-t-lg shadow-sm">
+            <button id="tab-timetable" class="px-4 py-2 border-b-2 border-blue-600 text-blue-600 font-bold outline-none transition-colors select-none">時刻表</button>
+            <button id="tab-diagram" class="px-4 py-2 border-b-2 border-transparent text-slate-500 hover:text-slate-700 font-medium outline-none transition-colors select-none">ダイヤグラム</button>
         </div>
 
         <div id="view-timetable">
@@ -72,6 +68,7 @@ HTML
             </div>
 
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+                <!-- 上り -->
                 <div class="flex flex-col">
                     <div class="bg-orange-500 text-white px-4 py-2 rounded-t-lg font-bold shadow-sm flex justify-between items-center">
                         <span id="nobori-title">上り</span>
@@ -93,6 +90,7 @@ HTML
                         </table>
                     </div>
                 </div>
+                <!-- 下り -->
                 <div class="flex flex-col">
                     <div class="bg-blue-600 text-white px-4 py-2 rounded-t-lg font-bold shadow-sm flex justify-between items-center">
                         <span id="kudari-title">下り</span>
@@ -136,36 +134,11 @@ HTML
                 <canvas id="diagram-canvas"></canvas>
             </div>
         </div>
-
-        <div id="view-unyo" class="hidden">
-            <div class="mb-4 flex flex-wrap gap-4 items-center bg-white p-3 rounded-lg shadow-sm border border-slate-200">
-                <div class="flex items-center gap-2">
-                    <span class="font-bold text-slate-700 text-sm">運用CSV読込:</span>
-                    <input type="file" id="csvInput" accept=".csv" class="text-sm border border-slate-300 rounded p-1">
-                </div>
-                <div class="flex items-center gap-2">
-                    <span class="font-bold text-slate-700 text-sm">運用選択:</span>
-                    <select id="unyo-select" class="bg-slate-50 border border-slate-300 rounded-md px-3 py-1.5 text-base font-medium text-slate-700 outline-none focus:ring-2 focus:ring-blue-500">
-                        <option value="">CSVを読み込んでください</option>
-                    </select>
-                </div>
-            </div>
-
-            <div id="unyo-strip-container" class="strip-container flex justify-center pb-10">
-                <div class="text-slate-400 mt-10 text-center w-full">
-                    <p class="text-lg font-bold">CSVファイルが読み込まれていません</p>
-                    <p class="text-sm mt-2">上部の「運用CSV読込」から運用表データをアップロードしてください。</p>
-                </div>
-            </div>
-        </div>
-
     </div>
 </div>
 
 <script>
-// ==========================================
-// 1. 初期データ (OuDiaフォーマット)
-// ==========================================
+// 芝電電車まつりダイヤのデータを初期データとして内包
 const defaultDataText = `FileType=OuDiaSecond.1.17
 Rosen.
 Rosenmei=芝電電車まつりダイヤ
@@ -1403,11 +1376,9 @@ Operation3A=5/$0
 
 let data = null;
 
-// ==========================================
-// グローバル変数・設定
-// ==========================================
 let rowPadding = 6;
 let colPadding = 8;
+
 let diagScaleX = 1.0;
 let diagScaleY = 1.0;
 let diagOffsetX = 0;
@@ -1417,12 +1388,6 @@ let diagDragStartX = 0;
 let diagDragStartY = 0;
 let diagNeedsInit = true;
 
-// 短冊用データ保存
-let parsedUnyoData = {}; // { "運用01": [ {列番:"1002", 方向:"下り", 駅リスト:[]}, ... ] }
-
-// ==========================================
-// UI 初期化とイベント
-// ==========================================
 function updatePadding() {
     document.documentElement.style.setProperty('--row-padding', rowPadding + 'px');
     document.documentElement.style.setProperty('--col-padding', colPadding + 'px');
@@ -1435,42 +1400,28 @@ document.getElementById('row-pad-inc').onclick = () => { if(rowPadding < 40) { r
 document.getElementById('col-pad-dec').onclick = () => { if(colPadding > 0) { colPadding -= 1; updatePadding(); } };
 document.getElementById('col-pad-inc').onclick = () => { if(colPadding < 60) { colPadding += 1; updatePadding(); } };
 
+// タブ切り替え処理
 const tabTimetable = document.getElementById('tab-timetable');
 const tabDiagram = document.getElementById('tab-diagram');
-const tabUnyo = document.getElementById('tab-unyo');
 const viewTimetable = document.getElementById('view-timetable');
 const viewDiagram = document.getElementById('view-diagram');
-const viewUnyo = document.getElementById('view-unyo');
-
-function resetTabs() {
-    tabTimetable.className = "px-4 py-2 border-b-2 border-transparent text-slate-500 hover:text-slate-700 font-medium outline-none transition-colors select-none whitespace-nowrap";
-    tabDiagram.className = "px-4 py-2 border-b-2 border-transparent text-slate-500 hover:text-slate-700 font-medium outline-none transition-colors select-none whitespace-nowrap";
-    tabUnyo.className = "px-4 py-2 border-b-2 border-transparent text-slate-500 hover:text-slate-700 font-medium outline-none transition-colors select-none whitespace-nowrap";
-    viewTimetable.classList.add('hidden');
-    viewDiagram.classList.add('hidden');
-    viewUnyo.classList.add('hidden');
-}
 
 tabTimetable.onclick = () => {
-    resetTabs();
-    tabTimetable.className = "px-4 py-2 border-b-2 border-blue-600 text-blue-600 font-bold outline-none transition-colors select-none whitespace-nowrap";
+    tabTimetable.className = "px-4 py-2 border-b-2 border-blue-600 text-blue-600 font-bold outline-none transition-colors select-none";
+    tabDiagram.className = "px-4 py-2 border-b-2 border-transparent text-slate-500 hover:text-slate-700 font-medium outline-none transition-colors select-none";
     viewTimetable.classList.remove('hidden');
-};
-tabDiagram.onclick = () => {
-    resetTabs();
-    tabDiagram.className = "px-4 py-2 border-b-2 border-blue-600 text-blue-600 font-bold outline-none transition-colors select-none whitespace-nowrap";
-    viewDiagram.classList.remove('hidden');
-    renderDiagram();
-};
-tabUnyo.onclick = () => {
-    resetTabs();
-    tabUnyo.className = "px-4 py-2 border-b-2 border-blue-600 text-blue-600 font-bold outline-none transition-colors select-none whitespace-nowrap";
-    viewUnyo.classList.remove('hidden');
+    viewDiagram.classList.add('hidden');
 };
 
-// ==========================================
-// データの読み込み
-// ==========================================
+tabDiagram.onclick = () => {
+    tabDiagram.className = "px-4 py-2 border-b-2 border-blue-600 text-blue-600 font-bold outline-none transition-colors select-none";
+    tabTimetable.className = "px-4 py-2 border-b-2 border-transparent text-slate-500 hover:text-slate-700 font-medium outline-none transition-colors select-none";
+    viewDiagram.classList.remove('hidden');
+    viewTimetable.classList.add('hidden');
+    renderDiagram();
+};
+
+// ページ読み込み時に初期データを表示
 window.addEventListener('DOMContentLoaded', () => {
     try {
         diagNeedsInit = true;
@@ -1490,6 +1441,7 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+// ファイル選択時の動作
 document.getElementById('fileInput').onchange = e => {
     if (!e.target.files.length) return;
     const reader = new FileReader();
@@ -1506,7 +1458,10 @@ document.getElementById('fileInput').onchange = e => {
             sel.onchange = renderAll;
             document.getElementById('results').classList.remove('hidden');
             renderAll();
-            if (!viewDiagram.classList.contains('hidden')) renderDiagram();
+            
+            if (!viewDiagram.classList.contains('hidden')) {
+                renderDiagram();
+            }
         } catch(err) { 
             console.error(err);
             alert('読み込みに失敗しました。ファイル形式を確認してください。'); 
@@ -1515,183 +1470,37 @@ document.getElementById('fileInput').onchange = e => {
     reader.readAsText(e.target.files[0], 'Shift_JIS');
 };
 
-// ==========================================
-// CSV読み込み＆短冊(運用表)生成ロジック
-// ==========================================
-document.getElementById('csvInput').onchange = e => {
-    if (!e.target.files.length) return;
-    const reader = new FileReader();
-    reader.onload = ev => {
-        try {
-            const csvText = ev.target.result;
-            processUnyoCSV(csvText);
-        } catch(err) {
-            console.error(err);
-            alert('CSVの解析に失敗しました。');
-        }
-    };
-    reader.readAsText(e.target.files[0], 'Shift_JIS'); // 日本語CSVを想定
-};
-
-function processUnyoCSV(csvText) {
-    // 1. 簡単なCSVパース
-    const lines = csvText.split(/\r?\n/).filter(l => l.trim().length > 0);
-    if(lines.length < 2) return;
-    const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
-    
-    // ヘッダー名から役割を推測
-    const colMap = { unyo: -1, train: -1, direction: -1, station: -1, chaku: -1, hatsu: -1, type: -1 };
-    headers.forEach((h, i) => {
-        if(h.includes('運用')) colMap.unyo = i;
-        if(h.includes('列車') || h.includes('列番')) colMap.train = i;
-        if(h.includes('上下') || h.includes('方向')) colMap.direction = i;
-        if(h.includes('駅')) colMap.station = i;
-        if(h.includes('着')) colMap.chaku = i;
-        if(h.includes('発')) colMap.hatsu = i;
-        if(h.includes('種別')) colMap.type = i;
-    });
-
-    parsedUnyoData = {};
-    
-    for(let i=1; i<lines.length; i++){
-        const cols = lines[i].split(',').map(c => c.trim().replace(/"/g, ''));
-        const unyo = colMap.unyo !== -1 ? cols[colMap.unyo] : '不明';
-        const train = colMap.train !== -1 ? cols[colMap.train] : '不明';
-        
-        if(!parsedUnyoData[unyo]) parsedUnyoData[unyo] = [];
-        
-        // 列車が既存かチェック
-        let trainObj = parsedUnyoData[unyo].find(t => t.number === train);
-        if(!trainObj) {
-            trainObj = {
-                number: train,
-                direction: colMap.direction !== -1 ? cols[colMap.direction] : '',
-                syubetsu: colMap.type !== -1 ? cols[colMap.type] : '普通',
-                stops: []
-            };
-            parsedUnyoData[unyo].push(trainObj);
-        }
-        
-        trainObj.stops.push({
-            station: colMap.station !== -1 ? cols[colMap.station] : '',
-            chaku: colMap.chaku !== -1 ? cols[colMap.chaku] : '',
-            hatsu: colMap.hatsu !== -1 ? cols[colMap.hatsu] : ''
-        });
-    }
-
-    // 2. セレクトボックスの更新
-    const select = document.getElementById('unyo-select');
-    select.innerHTML = '<option value="">運用を選択してください</option>';
-    Object.keys(parsedUnyoData).forEach(unyoId => {
-        const opt = document.createElement('option');
-        opt.value = unyoId;
-        opt.textContent = `運用: ${unyoId}`;
-        select.appendChild(opt);
-    });
-
-    select.onchange = (e) => {
-        renderUnyoStrip(e.target.value);
-    };
-
-    if(Object.keys(parsedUnyoData).length > 0) {
-        select.value = Object.keys(parsedUnyoData)[0];
-        renderUnyoStrip(select.value);
-    }
-}
-
-function renderUnyoStrip(unyoId) {
-    const container = document.getElementById('unyo-strip-container');
-    container.innerHTML = ''; // クリア
-
-    if(!unyoId || !parsedUnyoData[unyoId]) {
-        container.innerHTML = `<div class="text-slate-400 mt-10"><p>運用が選択されていません</p></div>`;
-        return;
-    }
-
-    const trains = parsedUnyoData[unyoId];
-
-    let html = `
-    <div class="bg-white border-2 border-slate-300 rounded-lg shadow-md overflow-hidden w-full max-w-xl flex flex-col h-fit">
-        <div class="bg-slate-700 text-white px-4 py-3 font-bold text-lg flex justify-between items-center">
-            <span class="tracking-wider">運用番号: ${unyoId}</span>
-            <span class="text-xs bg-slate-600 px-2 py-1 rounded">${trains.length}列車</span>
-        </div>
-        <div class="p-4 flex flex-col gap-6">
-    `;
-
-    trains.forEach((t, index) => {
-        const isKudari = t.direction.includes('下');
-        const borderColor = isKudari ? 'border-blue-500' : 'border-orange-500';
-        const bgColor = isKudari ? 'bg-blue-500' : 'bg-orange-500';
-        const badgeClass = isKudari ? 'bg-blue-100 text-blue-800 border-blue-200' : 'bg-orange-100 text-orange-800 border-orange-200';
-        
-        let stopsHtml = '';
-        t.stops.forEach(s => {
-            stopsHtml += `
-                <tr class="border-b border-slate-100">
-                    <td class="py-2 w-1/3 font-bold text-slate-700">${s.station || '-'}</td>
-                    <td class="py-2">
-                        ${s.chaku ? `
-                        <label class="cursor-pointer group inline-flex items-center px-2 py-1 rounded hover:bg-slate-50 border border-transparent hover:border-slate-200 transition-all">
-                            <input type="checkbox" class="mr-2 peer accent-${isKudari ? 'blue' : 'orange'}-600 w-4 h-4">
-                            <span class="font-bold text-slate-700 peer-checked:line-through peer-checked:text-slate-400">着 ${s.chaku}</span>
-                        </label>` : '<span class="text-slate-400 font-medium px-2 py-1">着 --:--</span>'}
-                    </td>
-                    <td class="py-2">
-                        ${s.hatsu ? `
-                        <label class="cursor-pointer group inline-flex items-center px-2 py-1 rounded hover:bg-slate-50 border border-transparent hover:border-slate-200 transition-all">
-                            <input type="checkbox" class="mr-2 peer accent-${isKudari ? 'blue' : 'orange'}-600 w-4 h-4">
-                            <span class="font-bold text-slate-700 peer-checked:line-through peer-checked:text-slate-400">発 ${s.hatsu}</span>
-                        </label>` : '<span class="text-slate-400 font-medium px-2 py-1">発 --:--</span>'}
-                    </td>
-                </tr>
-            `;
-        });
-
-        html += `
-            <div class="relative pl-4 border-l-4 ${borderColor}">
-                <div class="absolute -left-[10px] top-0 w-4 h-4 ${bgColor} rounded-full border-4 border-white"></div>
-                <div class="flex justify-between items-end mb-3">
-                    <div>
-                        <span class="${badgeClass} text-xs font-bold px-2 py-0.5 rounded border">${t.direction || '不明'}</span>
-                        <h3 class="text-lg font-extrabold text-slate-800 inline-block ml-2">${t.number}列車</h3>
-                    </div>
-                    <span class="text-sm font-bold text-slate-500">種別: ${t.syubetsu}</span>
-                </div>
-                <table class="w-full text-sm">
-                    <tbody>${stopsHtml}</tbody>
-                </table>
-            </div>
-        `;
-
-        if(index < trains.length - 1) {
-            html += `<div class="flex justify-center -my-3"><span class="text-slate-300 font-bold text-xs">▼ 折り返し ▼</span></div>`;
-        }
-    });
-
-    html += `</div></div>`;
-    container.innerHTML = html;
-}
-
-// ==========================================
-// OuDia 解析・時刻表・ダイヤグラム処理
-// ==========================================
 function formatTime(timeStr) {
     if (!timeStr) return '';
+    
     let targetStr = timeStr;
     if (timeStr.includes('/')) {
         const parts = timeStr.split('/');
         targetStr = parts[1] || parts[0];
     }
+    
     if (targetStr.includes(':')) return targetStr;
+    
     if (!/^\d+$/.test(targetStr)) return targetStr;
     
     let h = '00', m = '00', s = '00';
-    if (targetStr.length === 3) { h = '0' + targetStr.slice(0, 1); m = targetStr.slice(1); } 
-    else if (targetStr.length === 4) { h = targetStr.slice(0, 2); m = targetStr.slice(2); } 
-    else if (targetStr.length === 5) { h = '0' + targetStr.slice(0, 1); m = targetStr.slice(1, 3); s = targetStr.slice(3); } 
-    else if (targetStr.length === 6) { h = targetStr.slice(0, 2); m = targetStr.slice(2, 4); s = targetStr.slice(4); } 
-    else { return targetStr; }
+    if (targetStr.length === 3) {
+        h = '0' + targetStr.slice(0, 1);
+        m = targetStr.slice(1);
+    } else if (targetStr.length === 4) {
+        h = targetStr.slice(0, 2);
+        m = targetStr.slice(2);
+    } else if (targetStr.length === 5) {
+        h = '0' + targetStr.slice(0, 1);
+        m = targetStr.slice(1, 3);
+        s = targetStr.slice(3);
+    } else if (targetStr.length === 6) {
+        h = targetStr.slice(0, 2);
+        m = targetStr.slice(2, 4);
+        s = targetStr.slice(4);
+    } else {
+        return targetStr;
+    }
     
     return s === '00' ? `${h}:${m}` : `${h}:${m}:${s}`;
 }
@@ -1705,6 +1514,7 @@ function parseTimeToMinutes(timeStr) {
     else if (str.length === 5) { h = parseInt(str.slice(0,1), 10); m = parseInt(str.slice(1,3), 10); s = parseInt(str.slice(3,5), 10); }
     else if (str.length === 6) { h = parseInt(str.slice(0,2), 10); m = parseInt(str.slice(2,4), 10); s = parseInt(str.slice(4,6), 10); }
     else { return null; }
+    
     if (h < 3) h += 24; 
     return h * 60 + m + s / 60;
 }
@@ -1715,20 +1525,46 @@ function parseOuDia(text) {
     let curEki = null, curTrack = null, curT = null, curS = null;
     let currentDirection = 'Kudari';
     let blockStack = [];
-    let kudariAlias = '', noboriAlias = '';
+    
+    let kudariAlias = '';
+    let noboriAlias = '';
     
     for(let line of lines) {
         if(line.startsWith('KudariDiaAlias=')) { kudariAlias = line.split('=')[1]; continue; }
         if(line.startsWith('NoboriDiaAlias=')) { noboriAlias = line.split('=')[1]; continue; }
 
         if(line === 'EkiTrack2Cont.') continue;
-        if(line === 'Eki.') { blockStack.push('Eki'); curEki = { name: '', tracks: [], downMain: 0, upMain: 0 }; stations.push(curEki); continue; }
-        if(line === 'EkiTrack2.') { blockStack.push('EkiTrack2'); curTrack = { name: '', ryakusyou: '' }; curEki.tracks.push(curTrack); continue; }
-        if(line === 'Ressyasyubetsu.') { blockStack.push('Syubetsu'); curS = { name: '', color: '#000000' }; syubetsuList.push(curS); continue; }
+        if(line === 'Eki.') { 
+            blockStack.push('Eki'); 
+            curEki = { name: '', tracks: [], downMain: 0, upMain: 0 }; 
+            stations.push(curEki); 
+            continue; 
+        }
+        if(line === 'EkiTrack2.') { 
+            blockStack.push('EkiTrack2'); 
+            curTrack = { name: '', ryakusyou: '' }; 
+            curEki.tracks.push(curTrack); 
+            continue; 
+        }
+        if(line === 'Ressyasyubetsu.') { 
+            blockStack.push('Syubetsu'); 
+            curS = { name: '', color: '#000000' }; 
+            syubetsuList.push(curS); 
+            continue; 
+        }
         if(line === 'Kudari.') { currentDirection = 'Kudari'; continue; }
         if(line === 'Nobori.') { currentDirection = 'Nobori'; continue; }
-        if(line === 'Ressya.') { blockStack.push('Ressya'); curT = { sdMap: {}, number: '-', yukisaki: '', houkou: currentDirection, syubetsuIdx: 0 }; trains.push(curT); continue; }
-        if(line === '.') { blockStack.pop(); continue; }
+        
+        if(line === 'Ressya.') { 
+            blockStack.push('Ressya'); 
+            curT = { sdMap: {}, number: '-', yukisaki: '', houkou: currentDirection, syubetsuIdx: 0 }; 
+            trains.push(curT);
+            continue; 
+        }
+        if(line === '.') { 
+            blockStack.pop(); 
+            continue; 
+        }
 
         const block = blockStack.length > 0 ? blockStack[blockStack.length - 1] : "";
 
@@ -1742,10 +1578,17 @@ function parseOuDia(text) {
             else if(line.startsWith('TrackRyakusyou=')) curTrack.ryakusyou = line.split('=')[1];
         }
         else if(block === 'Syubetsu') {
-            if(line.startsWith('Syubetsumei=')) curS.name = line.split('=')[1];
+            if(line.startsWith('Syubetsumei=')) {
+                curS.name = line.split('=')[1];
+            }
             else if(line.startsWith('JikokuhyouMojiColor=')) {
                 let c = line.split('=')[1];
-                if(c.length >= 8) { let bb = c.slice(2, 4); let gg = c.slice(4, 6); let rr = c.slice(6, 8); curS.color = `#${rr}${gg}${bb}`; }
+                if(c.length >= 8) {
+                    let bb = c.slice(2, 4);
+                    let gg = c.slice(4, 6);
+                    let rr = c.slice(6, 8);
+                    curS.color = `#${rr}${gg}${bb}`;
+                }
             }
         }
         else if(block === 'Ressya') {
@@ -1778,14 +1621,20 @@ function parseOuDia(text) {
         let terminalName = '';
         if (t.yukisaki !== '') {
             const termIdx = parseInt(t.yukisaki, 10);
-            if (!isNaN(termIdx) && stations[termIdx]) terminalName = stations[termIdx].name;
-            else terminalName = t.yukisaki; 
+            if (!isNaN(termIdx) && stations[termIdx]) {
+                terminalName = stations[termIdx].name;
+            } else {
+                terminalName = t.yukisaki; 
+            }
         }
+        
         if (!terminalName) {
             const indices = Object.keys(t.sdMap).map(Number).sort((a, b) => a - b);
             if (indices.length > 0) {
                 const targetIdx = (t.houkou === 'Nobori') ? indices[0] : indices[indices.length - 1];
-                if (stations[targetIdx]) terminalName = stations[targetIdx].name;
+                if (stations[targetIdx]) {
+                    terminalName = stations[targetIdx].name;
+                }
             }
         }
         t.terminal = terminalName || '不明';
@@ -1809,11 +1658,22 @@ function renderTable(direction, bodyId, countId) {
         const st = data.stations[idx];
         if (st && sd.trackIdx !== '') {
             const trackCode = parseInt(sd.trackIdx, 10);
-            if (!isNaN(trackCode) && st.tracks && st.tracks[trackCode]) trackName = st.tracks[trackCode].ryakusyou || st.tracks[trackCode].name;
-            else trackName = sd.trackIdx;
+            if (!isNaN(trackCode) && st.tracks && st.tracks[trackCode]) {
+                trackName = st.tracks[trackCode].ryakusyou || st.tracks[trackCode].name;
+            } else {
+                trackName = sd.trackIdx;
+            }
         }
+        
         const syubetsu = data.syubetsuList[t.syubetsuIdx] || { name: '普通', color: '#000000' };
-        events.push({ time: sd.hatsu, number: t.number, syubetsuName: syubetsu.name, syubetsuColor: syubetsu.color, terminal: t.terminal, track: trackName });
+        events.push({ 
+            time: sd.hatsu, 
+            number: t.number, 
+            syubetsuName: syubetsu.name, 
+            syubetsuColor: syubetsu.color, 
+            terminal: t.terminal, 
+            track: trackName 
+        });
     });
     
     const sortedEvents = events.filter(e => e.time).sort((a, b) => {
@@ -1848,13 +1708,20 @@ function renderTable(direction, bodyId, countId) {
     });
 }
 
-function renderAll() { renderTable('Nobori', 'nobori-body', 'nobori-count'); renderTable('Kudari', 'kudari-body', 'kudari-count'); }
+function renderAll() {
+    renderTable('Nobori', 'nobori-body', 'nobori-count');
+    renderTable('Kudari', 'kudari-body', 'kudari-count');
+}
 
+// === ダイヤグラム描画と操作処理 ===
+
+// ダイヤの拡大縮小ボタン設定
 function zoomDiag(axis, factor) {
     const canvas = document.getElementById('diagram-canvas');
     const rect = canvas.getBoundingClientRect();
     const centerX = rect.width / 2;
     const centerY = rect.height / 2;
+
     if (axis === 'x' || axis === 'both') {
         let nextScaleX = diagScaleX * factor;
         nextScaleX = Math.max(0.1, Math.min(nextScaleX, 10.0));
@@ -1876,7 +1743,13 @@ document.getElementById('diag-x-dec').onclick = () => zoomDiag('x', 0.8);
 document.getElementById('diag-x-inc').onclick = () => zoomDiag('x', 1.25);
 document.getElementById('diag-y-dec').onclick = () => zoomDiag('y', 0.8);
 document.getElementById('diag-y-inc').onclick = () => zoomDiag('y', 1.25);
-document.getElementById('diag-reset').onclick = () => { diagScaleX = 1.0; diagScaleY = 1.0; diagOffsetX = 0; diagOffsetY = 0; renderDiagram(); };
+document.getElementById('diag-reset').onclick = () => {
+    diagScaleX = 1.0;
+    diagScaleY = 1.0;
+    diagOffsetX = 0;
+    diagOffsetY = 0;
+    renderDiagram();
+};
 
 function getTrainPoints(train) {
     const points = [];
@@ -1888,7 +1761,10 @@ function getTrainPoints(train) {
                 const parts = sd.rawTime.split('/');
                 if (parts[0]) chaku = parseTimeToMinutes(parts[0]);
                 if (parts[1]) hatsu = parseTimeToMinutes(parts[1]);
-            } else { hatsu = parseTimeToMinutes(sd.rawTime); chaku = hatsu; }
+            } else {
+                hatsu = parseTimeToMinutes(sd.rawTime);
+                chaku = hatsu; 
+            }
             points.push({ stationIdx: i, chaku: chaku, hatsu: hatsu });
         }
     }
@@ -1897,12 +1773,14 @@ function getTrainPoints(train) {
 
 function renderDiagram() {
     if (!data || !data.trains || data.trains.length === 0) return;
+    
     const container = document.getElementById('diagram-container');
     const canvas = document.getElementById('diagram-canvas');
     const ctx = canvas.getContext('2d');
     
     let minTime = Number.MAX_VALUE;
     let maxTime = Number.MIN_VALUE;
+    
     const allTrainPoints = data.trains.map(t => {
         const pts = getTrainPoints(t);
         pts.forEach(p => {
@@ -1913,13 +1791,20 @@ function renderDiagram() {
     });
     
     if (minTime === Number.MAX_VALUE) return;
+    
     const startHour = Math.floor(minTime / 60);
     const endHour = Math.ceil(maxTime / 60);
     const totalMinutes = (endHour - startHour) * 60;
     
+    // 論理スケールに合わせた描画座標の係数
     const pxPerMinute = 8 * diagScaleX; 
     const stationHeight = 80 * diagScaleY; 
-    const paddingLeft = 80, paddingRight = 40, paddingTop = 40, paddingBottom = 40;
+    
+    const paddingLeft = 80;
+    const paddingRight = 40;
+    const paddingTop = 40;
+    const paddingBottom = 40;
+    
     const diagWidth = paddingLeft + totalMinutes * pxPerMinute + paddingRight;
     const diagHeight = paddingTop + (data.stations.length - 1) * stationHeight + paddingBottom;
     
@@ -1933,108 +1818,224 @@ function renderDiagram() {
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, rect.width, rect.height);
     
-    if (diagNeedsInit) { diagScaleX = 1.0; diagScaleY = 1.0; diagOffsetX = 0; diagOffsetY = 0; diagNeedsInit = false; }
+    if (diagNeedsInit) {
+        diagScaleX = 1.0;
+        diagScaleY = 1.0;
+        diagOffsetX = 0;
+        diagOffsetY = 0;
+        diagNeedsInit = false;
+    }
+
     ctx.save();
     ctx.translate(diagOffsetX, diagOffsetY);
     
-    ctx.textAlign = "center"; ctx.textBaseline = "bottom";
-    const viewLeft = -diagOffsetX, viewRight = -diagOffsetX + rect.width, viewTop = -diagOffsetY, viewBottom = -diagOffsetY + rect.height;
+    // --- 罫線の描画 ---
+    ctx.textAlign = "center";
+    ctx.textBaseline = "bottom";
+    
+    // 描画最適化のためのカリング範囲
+    const viewLeft = -diagOffsetX;
+    const viewRight = -diagOffsetX + rect.width;
+    const viewTop = -diagOffsetY;
+    const viewBottom = -diagOffsetY + rect.height;
     
     for (let m = 0; m <= totalMinutes; m++) {
         const x = paddingLeft + m * pxPerMinute;
+        
         if (x < viewLeft - 50 || x > viewRight + 50) continue;
+        
         if (m % 60 === 0) {
-            ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 1;
-            ctx.fillStyle = '#334155'; ctx.font = "bold 13px sans-serif";
+            ctx.strokeStyle = '#94a3b8';
+            ctx.lineWidth = 1;
             const h = (startHour + m / 60) % 24;
+            ctx.fillStyle = '#334155';
+            ctx.font = "bold 13px sans-serif";
+            
             ctx.fillText(`${h}:00`, x, paddingTop - 10);
             ctx.fillText(`${h}:00`, x, diagHeight - paddingBottom + 25); 
-        } else if (m % 10 === 0) { ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 1; } 
-        else if (m % 2 === 0) { ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 0.5; } 
-        else { continue; }
-        ctx.beginPath(); ctx.moveTo(x, paddingTop); ctx.lineTo(x, diagHeight - paddingBottom); ctx.stroke();
+        } else if (m % 10 === 0) {
+            ctx.strokeStyle = '#cbd5e1'; 
+            ctx.lineWidth = 1;
+        } else if (m % 2 === 0) {
+            ctx.strokeStyle = '#e2e8f0'; 
+            ctx.lineWidth = 0.5;
+        } else {
+            continue;
+        }
+        
+        ctx.beginPath();
+        ctx.moveTo(x, paddingTop);
+        ctx.lineTo(x, diagHeight - paddingBottom);
+        ctx.stroke();
     }
     
-    ctx.textAlign = "right"; ctx.textBaseline = "middle"; ctx.fillStyle = '#1e293b'; ctx.font = "bold 13px sans-serif";
+    // 横線（駅）
+    ctx.textAlign = "right";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = '#1e293b';
+    ctx.font = "bold 13px sans-serif";
+    
     for (let i = 0; i < data.stations.length; i++) {
         const y = paddingTop + i * stationHeight;
+        
         if (y < viewTop - 50 || y > viewBottom + 50) continue;
-        ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 1.5;
-        ctx.beginPath(); ctx.moveTo(paddingLeft, y); ctx.lineTo(diagWidth - paddingRight, y); ctx.stroke();
+        
+        ctx.strokeStyle = '#94a3b8';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(paddingLeft, y);
+        ctx.lineTo(diagWidth - paddingRight, y);
+        ctx.stroke();
+        
         ctx.fillText(data.stations[i].name, paddingLeft - 10, y);
     }
     
+    // --- 列車の線の描画 ---
     allTrainPoints.forEach(tp => {
-        const t = tp.train, pts = tp.points;
+        const t = tp.train;
+        const pts = tp.points;
         if (pts.length < 2) return;
+        
         const syubetsu = data.syubetsuList[t.syubetsuIdx];
         ctx.strokeStyle = syubetsu ? syubetsu.color : '#000000';
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 2; // 線幅は固定で綺麗に表示
+        
         ctx.beginPath();
+        
         for (let i = 0; i < pts.length; i++) {
             const p = pts[i];
             const y = paddingTop + p.stationIdx * stationHeight;
+            
             if (p.chaku !== null && p.hatsu !== null && p.chaku !== p.hatsu) {
                 const xChaku = paddingLeft + (p.chaku - startHour * 60) * pxPerMinute;
                 const xHatsu = paddingLeft + (p.hatsu - startHour * 60) * pxPerMinute;
-                if (i === 0) ctx.moveTo(xHatsu, y);
-                else { ctx.lineTo(xChaku, y); ctx.lineTo(xHatsu, y); }
+                
+                if (i === 0) {
+                    ctx.moveTo(xHatsu, y);
+                } else {
+                    ctx.lineTo(xChaku, y);
+                    ctx.lineTo(xHatsu, y);
+                }
             } else {
-                const x = paddingLeft + ((p.hatsu !== null ? p.hatsu : p.chaku) - startHour * 60) * pxPerMinute;
-                if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+                const tVal = p.hatsu !== null ? p.hatsu : p.chaku;
+                const x = paddingLeft + (tVal - startHour * 60) * pxPerMinute;
+                
+                if (i === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
             }
         }
         ctx.stroke();
+        
+        // 列番の描画
         if (pts.length > 0) {
-            const p0 = pts[0], pLast = pts[pts.length - 1];
-            ctx.fillStyle = ctx.strokeStyle; ctx.font = "bold 11px sans-serif";
+            const p0 = pts[0]; 
+            const pLast = pts[pts.length - 1]; 
+            
+            ctx.fillStyle = ctx.strokeStyle;
+            ctx.font = "bold 11px sans-serif"; // フォントサイズも固定
+            
             const x0 = paddingLeft + ((p0.hatsu !== null ? p0.hatsu : p0.chaku) - startHour * 60) * pxPerMinute;
             const y0 = paddingTop + p0.stationIdx * stationHeight;
+            
+            // 画面外描画の最適化
             if (x0 > viewLeft - 50 && x0 < viewRight + 50 && y0 > viewTop - 50 && y0 < viewBottom + 50) {
-                ctx.textAlign = "center"; ctx.textBaseline = t.houkou === 'Kudari' ? "bottom" : "top";
-                ctx.fillText(t.number, x0, y0 + (t.houkou === 'Kudari' ? -4 : 4));
+                ctx.textAlign = "center";
+                ctx.textBaseline = t.houkou === 'Kudari' ? "bottom" : "top";
+                const offsetY0 = t.houkou === 'Kudari' ? -4 : 4;
+                ctx.fillText(t.number, x0, y0 + offsetY0);
             }
+            
             const xL = paddingLeft + ((pLast.chaku !== null ? pLast.chaku : pLast.hatsu) - startHour * 60) * pxPerMinute;
             const yL = paddingTop + pLast.stationIdx * stationHeight;
+            
             if (xL > viewLeft - 50 && xL < viewRight + 50 && yL > viewTop - 50 && yL < viewBottom + 50) {
                 ctx.textBaseline = t.houkou === 'Kudari' ? "top" : "bottom";
-                ctx.fillText(t.number, xL, yL + (t.houkou === 'Kudari' ? 4 : -4));
+                const offsetYL = t.houkou === 'Kudari' ? 4 : -4;
+                ctx.fillText(t.number, xL, yL + offsetYL);
             }
         }
     });
+    
     ctx.restore();
 }
 
-const dContainer = document.getElementById('diagram-container'), dCanvas = document.getElementById('diagram-canvas');
+// ズーム・パン(スクロール)機能のイベントリスナー
+const dContainer = document.getElementById('diagram-container');
+const dCanvas = document.getElementById('diagram-canvas');
+
 dContainer.addEventListener('wheel', (e) => {
     if(document.getElementById('view-diagram').classList.contains('hidden')) return;
     e.preventDefault();
-    const rect = dCanvas.getBoundingClientRect(), mouseX = e.clientX - rect.left, mouseY = e.clientY - rect.top;
-    let factor = Math.max(0.8, Math.min(1 - (e.deltaY * 0.001), 1.2));
-    if (diagScaleX * factor < 0.1) factor = 0.1 / diagScaleX; if (diagScaleX * factor > 10.0) factor = 10.0 / diagScaleX;
-    if (diagScaleY * factor < 0.1) factor = 0.1 / diagScaleY; if (diagScaleY * factor > 10.0) factor = 10.0 / diagScaleY;
-    diagOffsetX = mouseX - (mouseX - diagOffsetX) * factor; diagOffsetY = mouseY - (mouseY - diagOffsetY) * factor;
-    diagScaleX *= factor; diagScaleY *= factor; renderDiagram();
+    
+    const rect = dCanvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+
+    const zoomSensitivity = 0.001;
+    // 拡大縮小の係数
+    let factor = 1 - (e.deltaY * zoomSensitivity);
+    factor = Math.max(0.8, Math.min(factor, 1.2));
+    
+    // スケールの制限
+    if (diagScaleX * factor < 0.1) factor = 0.1 / diagScaleX;
+    if (diagScaleX * factor > 10.0) factor = 10.0 / diagScaleX;
+    if (diagScaleY * factor < 0.1) factor = 0.1 / diagScaleY;
+    if (diagScaleY * factor > 10.0) factor = 10.0 / diagScaleY;
+
+    // マウスカーソルの位置を中心にズームする計算
+    diagOffsetX = mouseX - (mouseX - diagOffsetX) * factor;
+    diagOffsetY = mouseY - (mouseY - diagOffsetY) * factor;
+    
+    diagScaleX *= factor;
+    diagScaleY *= factor;
+    
+    renderDiagram();
 }, { passive: false });
+
 dContainer.addEventListener('mousedown', (e) => {
     if(document.getElementById('view-diagram').classList.contains('hidden')) return;
-    isDiagDragging = true; diagDragStartX = e.clientX; diagDragStartY = e.clientY;
+    isDiagDragging = true;
+    diagDragStartX = e.clientX;
+    diagDragStartY = e.clientY;
 });
+
 window.addEventListener('mousemove', (e) => {
     if (!isDiagDragging) return;
-    diagOffsetX += e.clientX - diagDragStartX; diagOffsetY += e.clientY - diagDragStartY;
-    diagDragStartX = e.clientX; diagDragStartY = e.clientY; renderDiagram();
+    const dx = e.clientX - diagDragStartX;
+    const dy = e.clientY - diagDragStartY;
+    diagOffsetX += dx;
+    diagOffsetY += dy;
+    diagDragStartX = e.clientX;
+    diagDragStartY = e.clientY;
+    renderDiagram();
 });
-window.addEventListener('mouseup', () => { isDiagDragging = false; });
-window.addEventListener('resize', () => { if(!document.getElementById('view-diagram').classList.contains('hidden')) renderDiagram(); });
 
+window.addEventListener('mouseup', () => {
+    isDiagDragging = false;
+});
+
+window.addEventListener('resize', () => {
+    if(!document.getElementById('view-diagram').classList.contains('hidden')) {
+        renderDiagram();
+    }
+});
+
+// 現在時刻の更新
 function updateClock() {
     const now = new Date();
-    const h = String(now.getHours()).padStart(2, '0'), m = String(now.getMinutes()).padStart(2, '0'), s = String(now.getSeconds()).padStart(2, '0');
+    const h = String(now.getHours()).padStart(2, '0');
+    const m = String(now.getMinutes()).padStart(2, '0');
+    const s = String(now.getSeconds()).padStart(2, '0');
     const timeEl = document.getElementById('current-time');
-    if (timeEl) timeEl.textContent = `${h}:${m}:${s}`;
+    if (timeEl) {
+        timeEl.textContent = `${h}:${m}:${s}`;
+    }
 }
-setInterval(updateClock, 1000); updateClock();
+setInterval(updateClock, 1000);
+updateClock();
 
 </script>
 </body>
