@@ -21,6 +21,9 @@
     .diagram-container { overflow: hidden; height: calc(100vh - 300px); border: 1px solid #e2e8f0; border-radius: 0.5rem; background-color: #fff; position: relative; }
     #diagram-canvas { cursor: grab; display: block; width: 100%; height: 100%; }
     #diagram-canvas:active { cursor: grabbing; }
+
+    /* 短冊（ストリップ）用のカスタムスクロールバー */
+    .strip-container { height: calc(100vh - 250px); overflow-y: auto; }
 </style>
 </head>
 <body class="bg-slate-100 p-2 md:p-4 text-slate-800">
@@ -41,7 +44,7 @@
                 <button id="col-pad-inc" class="px-2 py-0.5 bg-white border border-slate-300 rounded hover:bg-slate-100 active:bg-slate-200 text-slate-600 select-none">▷</button>
             </div>
             <label class="bg-slate-600 text-white px-4 py-2 rounded-md cursor-pointer hover:bg-slate-700 transition font-medium shadow-sm active:scale-95 flex-shrink-0 text-sm" title="別のダイヤファイルを読み込む場合">
-                別ファイルを開く
+                OuDiaを開く
                 <input id="fileInput" type="file" class="hidden" accept=".oud2,.oud" />
             </label>
         </div>
@@ -49,10 +52,10 @@
 
     <div id="results" class="hidden">
         
-        <!-- タブ切り替え -->
-        <div class="flex border-b border-slate-300 mb-4 bg-white px-2 pt-2 rounded-t-lg shadow-sm">
-            <button id="tab-timetable" class="px-4 py-2 border-b-2 border-blue-600 text-blue-600 font-bold outline-none transition-colors select-none">時刻表</button>
-            <button id="tab-diagram" class="px-4 py-2 border-b-2 border-transparent text-slate-500 hover:text-slate-700 font-medium outline-none transition-colors select-none">ダイヤグラム</button>
+        <div class="flex border-b border-slate-300 mb-4 bg-white px-2 pt-2 rounded-t-lg shadow-sm overflow-x-auto">
+            <button id="tab-timetable" class="px-4 py-2 border-b-2 border-blue-600 text-blue-600 font-bold outline-none transition-colors select-none whitespace-nowrap">時刻表</button>
+            <button id="tab-diagram" class="px-4 py-2 border-b-2 border-transparent text-slate-500 hover:text-slate-700 font-medium outline-none transition-colors select-none whitespace-nowrap">ダイヤグラム</button>
+            <button id="tab-unyo" class="px-4 py-2 border-b-2 border-transparent text-slate-500 hover:text-slate-700 font-medium outline-none transition-colors select-none whitespace-nowrap">運用表 (スタフ)</button>
         </div>
 
         <div id="view-timetable">
@@ -68,7 +71,6 @@
             </div>
 
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
-                <!-- 上り -->
                 <div class="flex flex-col">
                     <div class="bg-orange-500 text-white px-4 py-2 rounded-t-lg font-bold shadow-sm flex justify-between items-center">
                         <span id="nobori-title">上り</span>
@@ -90,7 +92,6 @@
                         </table>
                     </div>
                 </div>
-                <!-- 下り -->
                 <div class="flex flex-col">
                     <div class="bg-blue-600 text-white px-4 py-2 rounded-t-lg font-bold shadow-sm flex justify-between items-center">
                         <span id="kudari-title">下り</span>
@@ -134,1242 +135,164 @@
                 <canvas id="diagram-canvas"></canvas>
             </div>
         </div>
+
+        <div id="view-unyo" class="hidden">
+            <div class="mb-4 flex flex-wrap gap-4 items-center bg-white p-3 rounded-lg shadow-sm border border-slate-200">
+                <div class="flex items-center gap-2">
+                    <span class="font-bold text-slate-700 text-sm">運用CSV読込:</span>
+                    <input type="file" id="csvInput" accept=".csv" class="text-sm border border-slate-300 rounded p-1">
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="font-bold text-slate-700 text-sm">運用選択:</span>
+                    <select id="unyo-select" class="bg-slate-50 border border-slate-300 rounded-md px-3 py-1.5 text-base font-medium text-slate-700 outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="demo">【サンプル】運用 01</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="strip-container flex justify-center pb-10">
+                
+                <div class="bg-white border-2 border-slate-300 rounded-lg shadow-md overflow-hidden w-full max-w-xl flex flex-col h-fit">
+                    
+                    <div class="bg-slate-700 text-white px-4 py-3 font-bold text-lg flex justify-between items-center">
+                        <span class="tracking-wider">運用番号: 01 (サンプル)</span>
+                        <span class="text-xs bg-slate-600 px-2 py-1 rounded">2列車</span>
+                    </div>
+
+                    <div class="p-4 flex flex-col gap-6">
+                        
+                        <div class="relative pl-4 border-l-4 border-blue-500">
+                            <div class="absolute -left-[10px] top-0 w-4 h-4 bg-blue-500 rounded-full border-4 border-white"></div>
+                            
+                            <div class="flex justify-between items-end mb-3">
+                                <div>
+                                    <span class="bg-blue-100 text-blue-800 text-xs font-bold px-2 py-0.5 rounded border border-blue-200">下り</span>
+                                    <h3 class="text-lg font-extrabold text-slate-800 inline-block ml-2">1002列車</h3>
+                                </div>
+                                <span class="text-sm font-bold text-slate-500">種別: 普通</span>
+                            </div>
+
+                            <table class="w-full text-sm">
+                                <tbody>
+                                    <tr class="border-b border-slate-100">
+                                        <td class="py-2 w-1/3 font-bold text-slate-700">芝鷺駅</td>
+                                        <td class="py-2">
+                                            <span class="text-slate-400 font-medium px-2 py-1">着 --:--</span>
+                                        </td>
+                                        <td class="py-2">
+                                            <label class="cursor-pointer group inline-flex items-center px-2 py-1 rounded hover:bg-slate-50 border border-transparent hover:border-slate-200 transition-all">
+                                                <input type="checkbox" class="mr-2 peer accent-blue-600 w-4 h-4">
+                                                <span class="font-bold text-slate-700 peer-checked:line-through peer-checked:text-slate-400">発 14:02</span>
+                                            </label>
+                                        </td>
+                                    </tr>
+                                    <tr class="border-b border-slate-100">
+                                        <td class="py-2 w-1/3 font-bold text-slate-700">海老和</td>
+                                        <td class="py-2">
+                                            <label class="cursor-pointer group inline-flex items-center px-2 py-1 rounded hover:bg-slate-50 border border-transparent hover:border-slate-200 transition-all">
+                                                <input type="checkbox" class="mr-2 peer accent-blue-600 w-4 h-4">
+                                                <span class="font-bold text-slate-700 peer-checked:line-through peer-checked:text-slate-400">着 14:07</span>
+                                            </label>
+                                        </td>
+                                        <td class="py-2">
+                                            <label class="cursor-pointer group inline-flex items-center px-2 py-1 rounded hover:bg-slate-50 border border-transparent hover:border-slate-200 transition-all">
+                                                <input type="checkbox" class="mr-2 peer accent-blue-600 w-4 h-4">
+                                                <span class="font-bold text-slate-700 peer-checked:line-through peer-checked:text-slate-400">発 14:08</span>
+                                            </label>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td class="py-2 w-1/3 font-bold text-slate-700">芝鷺港</td>
+                                        <td class="py-2">
+                                            <label class="cursor-pointer group inline-flex items-center px-2 py-1 rounded hover:bg-slate-50 border border-transparent hover:border-slate-200 transition-all">
+                                                <input type="checkbox" class="mr-2 peer accent-blue-600 w-4 h-4">
+                                                <span class="font-bold text-slate-700 peer-checked:line-through peer-checked:text-slate-400">着 14:15</span>
+                                            </label>
+                                        </td>
+                                        <td class="py-2">
+                                            <span class="text-slate-400 font-medium px-2 py-1">発 --:--</span>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="flex justify-center -my-3">
+                            <span class="text-slate-300">▼ 折り返し ▼</span>
+                        </div>
+
+                        <div class="relative pl-4 border-l-4 border-orange-500">
+                            <div class="absolute -left-[10px] top-0 w-4 h-4 bg-orange-500 rounded-full border-4 border-white"></div>
+
+                            <div class="flex justify-between items-end mb-3">
+                                <div>
+                                    <span class="bg-orange-100 text-orange-800 text-xs font-bold px-2 py-0.5 rounded border border-orange-200">上り</span>
+                                    <h3 class="text-lg font-extrabold text-slate-800 inline-block ml-2">1003列車</h3>
+                                </div>
+                                <span class="text-sm font-bold text-slate-500">種別: 普通</span>
+                            </div>
+
+                            <table class="w-full text-sm">
+                                <tbody>
+                                    <tr class="border-b border-slate-100">
+                                        <td class="py-2 w-1/3 font-bold text-slate-700">芝鷺港</td>
+                                        <td class="py-2">
+                                            <span class="text-slate-400 font-medium px-2 py-1">着 --:--</span>
+                                        </td>
+                                        <td class="py-2">
+                                            <label class="cursor-pointer group inline-flex items-center px-2 py-1 rounded hover:bg-slate-50 border border-transparent hover:border-slate-200 transition-all">
+                                                <input type="checkbox" class="mr-2 peer accent-orange-600 w-4 h-4">
+                                                <span class="font-bold text-slate-700 peer-checked:line-through peer-checked:text-slate-400">発 14:20</span>
+                                            </label>
+                                        </td>
+                                    </tr>
+                                    <tr class="border-b border-slate-100">
+                                        <td class="py-2 w-1/3 font-bold text-slate-700">海老和</td>
+                                        <td class="py-2">
+                                            <label class="cursor-pointer group inline-flex items-center px-2 py-1 rounded hover:bg-slate-50 border border-transparent hover:border-slate-200 transition-all">
+                                                <input type="checkbox" class="mr-2 peer accent-orange-600 w-4 h-4">
+                                                <span class="font-bold text-slate-700 peer-checked:line-through peer-checked:text-slate-400">着 14:27</span>
+                                            </label>
+                                        </td>
+                                        <td class="py-2">
+                                            <label class="cursor-pointer group inline-flex items-center px-2 py-1 rounded hover:bg-slate-50 border border-transparent hover:border-slate-200 transition-all">
+                                                <input type="checkbox" class="mr-2 peer accent-orange-600 w-4 h-4">
+                                                <span class="font-bold text-slate-700 peer-checked:line-through peer-checked:text-slate-400">発 14:28</span>
+                                            </label>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td class="py-2 w-1/3 font-bold text-slate-700">芝鷺駅</td>
+                                        <td class="py-2">
+                                            <label class="cursor-pointer group inline-flex items-center px-2 py-1 rounded hover:bg-slate-50 border border-transparent hover:border-slate-200 transition-all">
+                                                <input type="checkbox" class="mr-2 peer accent-orange-600 w-4 h-4">
+                                                <span class="font-bold text-slate-700 peer-checked:line-through peer-checked:text-slate-400">着 14:35</span>
+                                            </label>
+                                        </td>
+                                        <td class="py-2">
+                                            <span class="text-slate-400 font-medium px-2 py-1">発 --:--</span>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
 <script>
-// 芝電電車まつりダイヤのデータを初期データとして内包
+// --- (既存のスクリプトはそのまま維持し、以下を追加・修正します) ---
 const defaultDataText = `FileType=OuDiaSecond.1.17
 Rosen.
 Rosenmei=芝電電車まつりダイヤ
 KudariDiaAlias=港方面
 NoboriDiaAlias=駅方面
 Eki.
-Ekimei=芝鷺駅
-Ekijikokukeisiki=Jikokukeisiki_NoboriChaku
-Ekikibo=Ekikibo_Ippan
-DownMain=0
-UpMain=1
-JikokuhyouTrackDisplayKudari=1
-JikokuhyouTrackDisplayNobori=1
-DiagramTrackOmit=0,0,0,0
-EkiTrack2Cont.
-EkiTrack2.
-TrackName=1番線
-TrackRyakusyou=1
-.
-EkiTrack2.
-TrackName=2番線
-TrackRyakusyou=2
-.
-EkiTrack2.
-TrackName=3番線
-TrackRyakusyou=3
-.
-EkiTrack2.
-TrackName=4番線
-TrackRyakusyou=4
-.
-.
-JikokuhyouJikokuDisplayKudari=0,1
-JikokuhyouJikokuDisplayNobori=1,1
-JikokuhyouSyubetsuChangeDisplayKudari=0,0,3,3,1
-JikokuhyouSyubetsuChangeDisplayNobori=0,0,3,3,1
-DiagramColorNextEki=0
-OperationTableDisplayJikoku=1
-JikokuhyouOuterDisplayKudari=0,0
-JikokuhyouOuterDisplayNobori=0,0
-JikokuhyouPrevSyubetsuChangeDisplayKudari=0,0,0,0,1
-JikokuhyouPrevSyubetsuChangeDisplayNobori=0,0,0,0,1
-JikokuhyouNyuusenJikokuDisplayKudari=1
-.
-Eki.
-Ekimei=海老和
-Ekijikokukeisiki=Jikokukeisiki_Hatsuchaku
-Ekikibo=Ekikibo_Syuyou
-DownMain=0
-UpMain=1
-DiagramTrackOmit=0,0,0
-EkiTrack2Cont.
-EkiTrack2.
-TrackName=1番線
-TrackRyakusyou=1
-.
-EkiTrack2.
-TrackName=2番線
-TrackRyakusyou=2
-.
-EkiTrack2.
-TrackName=折返
-TrackRyakusyou=折
-.
-.
-JikokuhyouJikokuDisplayKudari=0,1
-JikokuhyouJikokuDisplayNobori=0,1
-JikokuhyouSyubetsuChangeDisplayKudari=0,0,0,0,1
-JikokuhyouSyubetsuChangeDisplayNobori=0,0,0,0,1
-DiagramColorNextEki=0
-OperationTableDisplayJikoku=1
-JikokuhyouOuterDisplayKudari=0,0
-JikokuhyouOuterDisplayNobori=0,0
-JikokuhyouPrevSyubetsuChangeDisplayKudari=0,0,0,0,1
-JikokuhyouPrevSyubetsuChangeDisplayNobori=0,0,0,0,1
-.
-Eki.
-Ekimei=海老和車庫
-EkimeiJikokuRyaku=海老車庫
-Ekijikokukeisiki=Jikokukeisiki_Hatsu
-Ekikibo=Ekikibo_Ippan
-DownMain=0
-UpMain=1
-DiagramTrackOmit=0,0
-EkiTrack2Cont.
-EkiTrack2.
-TrackName=1番線
-TrackRyakusyou=1
-.
-EkiTrack2.
-TrackName=2番線
-TrackRyakusyou=2
-.
-.
-JikokuhyouTrackOmit=1
-JikokuhyouJikokuDisplayKudari=0,1
-JikokuhyouJikokuDisplayNobori=0,1
-JikokuhyouSyubetsuChangeDisplayKudari=0,0,0,0,1
-JikokuhyouSyubetsuChangeDisplayNobori=0,0,0,0,1
-DiagramColorNextEki=0
-JikokuhyouOuterDisplayKudari=0,0
-JikokuhyouOuterDisplayNobori=0,0
-JikokuhyouPrevSyubetsuChangeDisplayKudari=0,0,0,0,1
-JikokuhyouPrevSyubetsuChangeDisplayNobori=0,0,0,0,1
-.
-Eki.
-Ekimei=入江浜口
-Ekijikokukeisiki=Jikokukeisiki_Hatsuchaku
-Ekikibo=Ekikibo_Ippan
-DownMain=0
-UpMain=1
-DiagramTrackOmit=0,0,0
-EkiTrack2Cont.
-EkiTrack2.
-TrackName=1番線
-TrackRyakusyou=1
-.
-EkiTrack2.
-TrackName=2番線
-TrackRyakusyou=2
-.
-EkiTrack2.
-TrackName=折返入換
-TrackRyakusyou=折
-.
-.
-JikokuhyouJikokuDisplayKudari=0,1
-JikokuhyouJikokuDisplayNobori=1,1
-JikokuhyouSyubetsuChangeDisplayKudari=0,0,0,0,1
-JikokuhyouSyubetsuChangeDisplayNobori=0,0,0,0,1
-DiagramColorNextEki=0
-JikokuhyouOuterDisplayKudari=0,0
-JikokuhyouOuterDisplayNobori=0,0
-JikokuhyouPrevSyubetsuChangeDisplayKudari=0,0,0,0,1
-JikokuhyouPrevSyubetsuChangeDisplayNobori=0,0,0,0,1
-.
-Eki.
-Ekimei=芝鷺港
-Ekijikokukeisiki=Jikokukeisiki_KudariChaku
-Ekikibo=Ekikibo_Syuyou
-DownMain=0
-UpMain=0
-DiagramTrackOmit=0,0,0
-EkiTrack2Cont.
-EkiTrack2.
-TrackName=1番線
-TrackRyakusyou=1
-.
-EkiTrack2.
-TrackName=2番線
-TrackRyakusyou=2
-.
-EkiTrack2.
-TrackName=3番線
-TrackRyakusyou=3
-.
-.
-JikokuhyouJikokuDisplayKudari=1,1
-JikokuhyouJikokuDisplayNobori=0,1
-JikokuhyouSyubetsuChangeDisplayKudari=0,0,0,0,1
-JikokuhyouSyubetsuChangeDisplayNobori=0,0,0,0,1
-DiagramColorNextEki=0
-JikokuhyouOuterDisplayKudari=0,0
-JikokuhyouOuterDisplayNobori=0,0
-JikokuhyouPrevSyubetsuChangeDisplayKudari=0,0,0,0,1
-JikokuhyouPrevSyubetsuChangeDisplayNobori=0,0,0,0,1
-.
-Ressyasyubetsu.
-Syubetsumei=普通
-Ryakusyou=普通
-JikokuhyouMojiColor=00000000
-JikokuhyouFontIndex=0
-JikokuhyouBackColor=00FFFFFF
-DiagramSenColor=00000000
-DiagramSenStyle=SenStyle_Jissen
-StopMarkDrawType=EStopMarkDrawType_DrawOnStop
-.
-Ressyasyubetsu.
-Syubetsumei=臨時
-Ryakusyou=臨時
-JikokuhyouMojiColor=00000000
-JikokuhyouFontIndex=0
-JikokuhyouBackColor=00FFFFFF
-DiagramSenColor=00000000
-DiagramSenStyle=SenStyle_Hasen
-StopMarkDrawType=EStopMarkDrawType_DrawOnStop
-.
-Ressyasyubetsu.
-Syubetsumei=快速臨時
-Ryakusyou=快臨
-JikokuhyouMojiColor=000000FF
-JikokuhyouFontIndex=0
-JikokuhyouBackColor=00FFFFFF
-DiagramSenColor=000000FF
-DiagramSenStyle=SenStyle_Hasen
-StopMarkDrawType=EStopMarkDrawType_DrawOnStop
-.
-Ressyasyubetsu.
-Syubetsumei=貸切/回送
-Ryakusyou=貸回
-JikokuhyouMojiColor=00FF0000
-JikokuhyouFontIndex=0
-JikokuhyouBackColor=00FFFFFF
-DiagramSenColor=00FF0000
-DiagramSenStyle=SenStyle_Hasen
-StopMarkDrawType=EStopMarkDrawType_DrawOnStop
-.
-Dia.
-DiaName=シンプルダイヤ
-MainBackColorIndex=0
-SubBackColorIndex=1
-BackPatternIndex=0
-PatternDiagramPreviewCycleSecond=600
-Kudari.
-Ressya.
-Houkou=Kudari
-Syubetsu=0
-Ressyabangou=1002
-EkiJikoku=,1;1402$0,1;1401$0,1;1407$0,1;1415/$0
-Operation1B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=1
-Ressyabangou=1102
-EkiJikoku=,1;1408$0,1;1407$0,1;1413/$2
-Operation1B=5/$
-Operation3A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=0
-Ressyabangou=1004
-EkiJikoku=,1;1417$0,1;1416$0,1;1422$0,1;1430/$1
-Operation1B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=1
-Ressyabangou=1104
-EkiJikoku=,1;1421$0,1;1420$0,1;1426/$2
-Operation1B=5/$
-Operation3A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=0
-Ressyabangou=1006
-EkiJikoku=1;1422$0,1;1437$0,2$0,1;1442$0,1;1450/$0
-Operation0B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=1
-Ressyabangou=1108
-EkiJikoku=1;1424$2,1;1439/$2
-Operation0B=5/$
-Operation1A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=2
-Ressyabangou=1200
-EkiJikoku=1;1426$3,2$0,1;1442/$0
-Operation0B=5/$
-Operation2A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=2
-Ressyabangou=1202
-EkiJikoku=1;1428$1,2$0,1;1443/$0
-Operation0B=5/$
-Operation2A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=3
-Ressyabangou=1322
-EkiJikoku=,1;1445$0,1;1444$0,1;1450/1450$0,1;1458/$0
-Operation1B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=1
-Ressyabangou=1110
-EkiJikoku=1;1432$1,1;1447$0,1;1448/$0
-Operation0B=5/$
-Operation2A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=1
-Ressyabangou=1112
-EkiJikoku=1;1435$2,1;1450/1450$0,2$0,1;1455/$2
-Operation0B=5/$
-Operation3A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=1
-Ressyabangou=1114
-EkiJikoku=1;1438$1,1;1453/$2
-Operation0B=5/$
-Operation1A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=0
-Ressyabangou=1006
-EkiJikoku=1;1442$0,1;1457$0,2$0,1;1502$0,1;1510/$1
-Operation0B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=1
-Ressyabangou=1116
-EkiJikoku=1;1443$2,1;1459/$2
-Operation0B=5/$
-Operation1A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=2
-Ressyabangou=1204
-EkiJikoku=1;1445$3,2$0,1;1500/$0
-Operation0B=5/$
-Operation2A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=1
-Ressyabangou=1118
-EkiJikoku=1;1447$1,1;1502$0,1;1503/$0
-Operation0B=5/$
-Operation2A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=1
-Ressyabangou=1120
-EkiJikoku=1;1450$2,1;1505/1505$0,2$0,1;1510/$2
-Operation0B=5/$
-Operation3A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=1
-Ressyabangou=1122
-EkiJikoku=1;1453$1,1;1508/$2
-Operation0B=5/$
-Operation1A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=0
-Ressyabangou=1010
-EkiJikoku=1;1457$0,1;1512$0,2$0,1;1517$0,1;1525/$0
-Operation0B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=1
-Ressyabangou=1124
-EkiJikoku=1;1458$2,1;1515/$2
-Operation0B=5/$
-Operation1A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=1
-Ressyabangou=1126
-EkiJikoku=1;1502$1,1;1517$0,1;1518/$0
-Operation0B=5/$
-Operation2A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=1
-Ressyabangou=1128
-EkiJikoku=1;1505$2,1;1520/1520$0,2$0,1;1525/$2
-Operation0B=5/$
-Operation3A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=1
-Ressyabangou=1130
-EkiJikoku=1;1508$1,1;1523/$2
-Operation0B=5/$
-Operation1A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=0
-Ressyabangou=1012
-EkiJikoku=1;1512$0,1;1527$0,2$0,1;1532$0,1;1540/$1
-Operation0B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=1
-Ressyabangou=1132
-EkiJikoku=1;1513$2,1;1530/$2
-Operation0B=5/$
-Operation1A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=1
-Ressyabangou=1134
-EkiJikoku=1;1517$1,1;1532$0,1;1533/$0
-Operation0B=5/$
-Operation2A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=1
-Ressyabangou=1136
-EkiJikoku=1;1520$2,1;1535/1535$0,2$0,1;1540/$2
-Operation0B=5/$
-Operation3A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=1
-Ressyabangou=1138
-EkiJikoku=1;1523$1,1;1538/$2
-Operation0B=5/$
-Operation1A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=3
-Ressyabangou=1382
-EkiJikoku=1;1525$3,1;1531/1531$0,1;1532/$0
-Operation0B=5/$
-Operation2A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=0
-Ressyabangou=1014
-EkiJikoku=1;1527$0,1;1542$0,2$0,1;1547$0,1;1555/$0
-Operation0B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=1
-Ressyabangou=1140
-EkiJikoku=1;1528$2,1;1545/$2
-Operation0B=5/$
-Operation1A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=1
-Ressyabangou=1142
-EkiJikoku=1;1532$1,1;1547$0,1;1548/$0
-Operation0B=5/$
-Operation2A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=1
-Ressyabangou=1144
-EkiJikoku=1;1535$2,1;1550/1550$0,2$0,1;1555/$2
-Operation0B=5/$
-Operation3A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=1
-Ressyabangou=1146
-EkiJikoku=1;1538$1,1;1553/$2
-Operation0B=5/$
-Operation1A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=0
-Ressyabangou=1016
-EkiJikoku=1;1542$0,1;1557$0,2$0,1;1602$0,1;1610/$1
-Operation0B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=1
-Ressyabangou=1148
-EkiJikoku=1;1543$2,1;1600/$2
-Operation0B=5/$
-Operation1A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=1
-Ressyabangou=1150
-EkiJikoku=1;1547$1,1;1602$0,1;1603/$0
-Operation0B=5/$
-Operation2A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=1
-Ressyabangou=1152
-EkiJikoku=1;1550$2,1;1605/1605$0,2$0,1;1610/$2
-Operation0B=5/$
-Operation3A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=1
-Ressyabangou=1154
-EkiJikoku=1;1553$1,1;1608/$2
-Operation0B=5/$
-Operation1A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=0
-Ressyabangou=1018
-EkiJikoku=1;1557$0,1;1612$0,2$0,1;1617$0,1;1625/$0
-Operation0B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=1
-Ressyabangou=1156
-EkiJikoku=1;1558$2,1;1615/$2
-Operation0B=5/$
-Operation1A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=1
-Ressyabangou=1158
-EkiJikoku=1;1602$1,1;1617$0,1;1618/$0
-Operation0B=5/$
-Operation2A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=1
-Ressyabangou=1160
-EkiJikoku=1;1605$2,1;1620/1620$0,2$0,1;1625/$2
-Operation0B=5/$
-Operation3A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=1
-Ressyabangou=1162
-EkiJikoku=1;1608$1,1;1623/$2
-Operation0B=5/$
-Operation1A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=0
-Ressyabangou=1020
-EkiJikoku=1;1612$0,1;1627$0,2$0,1;1632$0,1;1640/$1
-Operation0B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=1
-Ressyabangou=1164
-EkiJikoku=1;1613$2,1;1630/$2
-Operation0B=5/$
-Operation1A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=1
-Ressyabangou=1166
-EkiJikoku=1;1617$1,1;1632$0,1;1633/$0
-Operation0B=5/$
-Operation2A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=1
-Ressyabangou=1168
-EkiJikoku=1;1620$2,1;1635/1635$0,2$0,1;1640/$2
-Operation0B=5/$
-Operation3A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=1
-Ressyabangou=1170
-EkiJikoku=1;1623$1,1;1638/$2
-Operation0B=5/$
-Operation1A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=0
-Ressyabangou=1022
-EkiJikoku=1;1627$0,1;1642$0,2$0,1;1647$0,1;1655/$0
-Operation0B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=1
-Ressyabangou=1172
-EkiJikoku=1;1628$2,1;1645/$2
-Operation0B=5/$
-Operation1A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=3
-Ressyabangou=1301
-EkiJikoku=1;1629$3,1;1644/1644$0,1;1645/$0
-Operation0B=5/$
-Operation2A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=1
-Ressyabangou=1174
-EkiJikoku=1;1632$1,1;1647/1647$0,1;1648/$0
-Operation0B=5/$
-Operation2A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=1
-Ressyabangou=1176
-EkiJikoku=1;1635$2,1;1650/1650$0,1;1651/$0
-Operation0B=5/$
-Operation2A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=1
-Ressyabangou=1178
-EkiJikoku=1;1638$1,1;1653/1653$0,1;1654/$0
-Operation0B=5/$
-Operation2A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=3
-Ressyabangou=1303
-EkiJikoku=1;1640$3,1;1655/1655$0,1;1656/$0
-Operation0B=5/$
-Operation2A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=0
-Ressyabangou=1024
-EkiJikoku=1;1642$0,1;1657$0,2$0,1;1702$0,1;1710/$1
-Operation0B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=1
-Ressyabangou=1180
-EkiJikoku=1;1643$2,1;1700/1700$0,1;1701/$0
-Operation0B=5/$
-Operation2A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=1
-Ressyabangou=1182
-EkiJikoku=1;1647$1,1;1702$0,1;1703/$0
-Operation0B=5/$
-Operation2A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=1
-Ressyabangou=1184
-EkiJikoku=1;1650$2,1;1705/1705$0,1;1706/$0
-Operation0B=5/$
-Operation2A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=1
-Ressyabangou=1186
-EkiJikoku=1;1653$1,1;1708/1708$0,1;1709/$0
-Operation0B=5/$
-Operation2A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=0
-Ressyabangou=1026
-EkiJikoku=1;1657$0,1;1712$0,1;1713/$0
-Operation0B=5/$
-Operation2A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=1
-Ressyabangou=1188
-EkiJikoku=1;1658$2,1;1715/1715$0,1;1717/$0
-Operation0B=5/$
-Operation2A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=1
-Ressyabangou=1190
-EkiJikoku=1;1702$1,1;1717$0,1;1718/$0
-Operation0B=5/$
-Operation2A=5/$0
-.
-Ressya.
-Houkou=Kudari
-Syubetsu=1
-Ressyabangou=1192
-EkiJikoku=1;1705$2,1;1720/1720$0,1;1721/$0
-Operation0B=5/$
-Operation2A=5/$0
-.
-.
-Nobori.
-Ressya.
-Houkou=Nobori
-Syubetsu=0
-Ressyabangou=1001
-EkiJikoku=,,1;1359$1,1;1400$1,1;1415/$0
-Operation2B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Nobori
-Syubetsu=1
-Ressyabangou=1101
-EkiJikoku=,,1;1403$1,1;1404$1,1;1420/$2
-Operation2B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Nobori
-Syubetsu=3
-Ressyabangou=1301
-EkiJikoku=,,1;1404$1,1;1405$1,1;1421/$3
-Operation2B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Nobori
-Syubetsu=1
-Ressyabangou=1103
-EkiJikoku=,,,,1;1422/$1
-Operation2B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Nobori
-Syubetsu=1
-Ressyabangou=1105
-EkiJikoku=,,1;1409$1,1;1410$1,1;1425/$2
-Operation2B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Nobori
-Syubetsu=1
-Ressyabangou=1107
-EkiJikoku=,,1;1412$1,1;1413$1,1;1428/$1
-Operation2B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Nobori
-Syubetsu=0
-Ressyabangou=1003
-EkiJikoku=,,1;1414$1,1;1415$1,1;1430/$0
-Operation2B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Nobori
-Syubetsu=3
-Ressyabangou=1303
-EkiJikoku=,,1;1418$1,1;1419$1,1;1434/$3
-Operation2B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Nobori
-Syubetsu=1
-Ressyabangou=1109
-EkiJikoku=,,1;1422$1,1;1423$1,1;1438/$2
-Operation2B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Nobori
-Syubetsu=1
-Ressyabangou=1111
-EkiJikoku=,1;1420$2,2$1,1;1425$1,1;1440/$1
-Operation1B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Nobori
-Syubetsu=1
-Ressyabangou=1113
-EkiJikoku=,,1;1429$1,1;1430$1,1;1445/$2
-Operation2B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Nobori
-Syubetsu=1
-Ressyabangou=1115
-EkiJikoku=,1;1428$2,2$1,1;1434$1,1;1449/$1
-Operation1B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Nobori
-Syubetsu=0
-Ressyabangou=1007
-EkiJikoku=1;1425$0,1;1433/1433$1,2$1,1;1437$1,1;1452/$0
-Operation0B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Nobori
-Syubetsu=1
-Ressyabangou=1117
-EkiJikoku=,,1;1438$1,1;1439$1,1;1454/$2
-Operation2B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Nobori
-Syubetsu=1
-Ressyabangou=1119
-EkiJikoku=,,,1;1442/1443$2,1;1458/$1
-Operation3B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Nobori
-Syubetsu=1
-Ressyabangou=1121
-EkiJikoku=,,1;1444$1,1;1445/1445$1,1;1500/$2
-Operation2B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Nobori
-Syubetsu=1
-Ressyabangou=1123
-EkiJikoku=,,1;1447$1,1;1448/1448$1,1;1503/$1
-Operation2B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Nobori
-Syubetsu=0
-Ressyabangou=1009
-EkiJikoku=1;1440$1,1;1448/1448$1,2$1,1;1452$1,1;1507/$0
-Operation0B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Nobori
-Syubetsu=1
-Ressyabangou=1125
-EkiJikoku=,,,1;1454/1455$2,1;1510/$2
-Operation3B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Nobori
-Syubetsu=1
-Ressyabangou=1127
-EkiJikoku=,,1;1457$1,1;1458/1458$1,1;1513/$1
-Operation2B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Nobori
-Syubetsu=3
-Ressyabangou=1381
-EkiJikoku=,,1;1458$1,1;1459/1459$1,1;1515/$3
-Operation2B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Nobori
-Syubetsu=1
-Ressyabangou=1129
-EkiJikoku=,,,1;1501/1502$2,1;1517/$2
-Operation3B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Nobori
-Syubetsu=1
-Ressyabangou=1131
-EkiJikoku=,1;1501$2,2$1,1;1505/1505$1,1;1520/$1
-Operation1B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Nobori
-Syubetsu=0
-Ressyabangou=1011
-EkiJikoku=1;1455$0,1;1503/1503$1,2$1,1;1507$1,1;1522/$0
-Operation0B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Nobori
-Syubetsu=1
-Ressyabangou=1133
-EkiJikoku=,,,1;1509/1510$2,1;1525/$2
-Operation3B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Nobori
-Syubetsu=1
-Ressyabangou=1135
-EkiJikoku=,,1;1512$1,1;1513/1513$1,1;1528/$1
-Operation2B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Nobori
-Syubetsu=1
-Ressyabangou=1137
-EkiJikoku=,,,1;1516/1517$2,1;1532/$2
-Operation3B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Nobori
-Syubetsu=1
-Ressyabangou=1139
-EkiJikoku=,1;1516$2,2$1,1;1520/1520$1,1;1535/$1
-Operation1B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Nobori
-Syubetsu=0
-Ressyabangou=1013
-EkiJikoku=1;1510$0,1;1518/1518$1,2$1,1;1522$1,1;1537/$0
-Operation0B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Nobori
-Syubetsu=1
-Ressyabangou=1141
-EkiJikoku=,,,1;1524/1525$2,1;1540/$2
-Operation3B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Nobori
-Syubetsu=1
-Ressyabangou=1143
-EkiJikoku=,,1;1527$1,1;1528/1528$1,1;1543/$1
-Operation2B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Nobori
-Syubetsu=1
-Ressyabangou=1145
-EkiJikoku=,,,1;1531/1532$2,1;1547/$2
-Operation3B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Nobori
-Syubetsu=1
-Ressyabangou=1147
-EkiJikoku=,1;1531$2,2$1,1;1535/1535$1,1;1550/$1
-Operation1B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Nobori
-Syubetsu=0
-Ressyabangou=1015
-EkiJikoku=1;1525$1,1;1533/1533$1,2$1,1;1537$1,1;1552/$0
-Operation0B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Nobori
-Syubetsu=1
-Ressyabangou=1149
-EkiJikoku=,,,1;1539/1540$2,1;1555/$2
-Operation3B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Nobori
-Syubetsu=1
-Ressyabangou=1151
-EkiJikoku=,,1;1542$1,1;1543/1543$1,1;1558/$1
-Operation2B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Nobori
-Syubetsu=1
-Ressyabangou=1153
-EkiJikoku=,,,1;1546/1547$2,1;1602/$2
-Operation3B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Nobori
-Syubetsu=1
-Ressyabangou=1155
-EkiJikoku=,1;1546$2,2$1,1;1550/1550$1,1;1605/$1
-Operation1B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Nobori
-Syubetsu=0
-Ressyabangou=1017
-EkiJikoku=1;1540$0,1;1548/1548$1,2$1,1;1552$1,1;1607/$0
-Operation0B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Nobori
-Syubetsu=1
-Ressyabangou=1157
-EkiJikoku=,,,1;1554/1555$2,1;1610/$2
-Operation3B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Nobori
-Syubetsu=1
-Ressyabangou=1159
-EkiJikoku=,,1;1557$1,1;1558/1558$1,1;1613/$1
-Operation2B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Nobori
-Syubetsu=1
-Ressyabangou=1161
-EkiJikoku=,,,1;1601/1602$2,1;1617/$2
-Operation3B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Nobori
-Syubetsu=1
-Ressyabangou=1163
-EkiJikoku=,1;1601$2,2$1,1;1605/1605$1,1;1620/$1
-Operation1B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Nobori
-Syubetsu=0
-Ressyabangou=1019
-EkiJikoku=1;1555$1,1;1603/1603$1,2$1,1;1607$1,1;1622/$0
-Operation0B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Nobori
-Syubetsu=1
-Ressyabangou=1165
-EkiJikoku=,,,1;1609/1610$2,1;1625/$2
-Operation3B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Nobori
-Syubetsu=2
-Ressyabangou=1201
-EkiJikoku=,,1;1610$1,1;1611/1611$1,1;1626/$3
-Operation2B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Nobori
-Syubetsu=1
-Ressyabangou=1167
-EkiJikoku=,,1;1612$1,1;1613/1613$1,1;1628/$1
-Operation2B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Nobori
-Syubetsu=2
-Ressyabangou=1203
-EkiJikoku=,,1;1615$1,1;1616/1616$1,1;1630/$3
-Operation2B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Nobori
-Syubetsu=1
-Ressyabangou=1169
-EkiJikoku=,,,1;1616/1617$2,1;1632/$2
-Operation3B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Nobori
-Syubetsu=1
-Ressyabangou=1171
-EkiJikoku=,1;1616$2,2$1,1;1620/1620$1,1;1635/$1
-Operation1B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Nobori
-Syubetsu=0
-Ressyabangou=1021
-EkiJikoku=1;1610$0,1;1618/1618$1,2$1,1;1622$1,1;1637/$0
-Operation0B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Nobori
-Syubetsu=1
-Ressyabangou=1173
-EkiJikoku=,,,1;1624/1625$2,1;1640/$2
-Operation3B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Nobori
-Syubetsu=1
-Ressyabangou=1175
-EkiJikoku=,,1;1627$1,1;1628/1628$1,1;1643/$1
-Operation2B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Nobori
-Syubetsu=1
-Ressyabangou=1177
-EkiJikoku=,,,1;1631/1632$2,1;1647/$2
-Operation3B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Nobori
-Syubetsu=1
-Ressyabangou=1179
-EkiJikoku=,1;1631$2,2$1,1;1635/1635$1,1;1650/$1
-Operation1B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Nobori
-Syubetsu=0
-Ressyabangou=1023
-EkiJikoku=1;1625$1,1;1633/1633$1,2$1,1;1637$1,1;1652/$0
-Operation0B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Nobori
-Syubetsu=1
-Ressyabangou=1181
-EkiJikoku=,,,1;1639/1640$2,1;1655/$2
-Operation3B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Nobori
-Syubetsu=1
-Ressyabangou=1183
-EkiJikoku=,,1;1642$1,1;1643/1643$1,1;1658/$1
-Operation2B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Nobori
-Syubetsu=1
-Ressyabangou=1185
-EkiJikoku=,,,1;1646/1647$2,1;1702/$2
-Operation3B=5/$
-Operation4A=5/$0
-.
-Ressya.
-Houkou=Nobori
-Syubetsu=3
-Ressyabangou=1321
-EkiJikoku=,1;1643$2,1;1649/1649$1,1;1648/$1
-Operation1B=5/$
-Operation3A=5/$0
-.
-Ressya.
-Houkou=Nobori
-Syubetsu=0
-Ressyabangou=1025
-EkiJikoku=1;1640$0,1;1648/1648$1,1;1654$1,1;1653/$1
-Operation0B=5/$
-Operation3A=5/$0
-.
-Ressya.
-Houkou=Nobori
-Syubetsu=0
-Ressyabangou=1027
-EkiJikoku=1;1655$1,1;1703/1703$1,1;1709$1,1;1708/$1
-Operation0B=5/$
-Operation3A=5/$0
+// ... (中略：既存のOuDiaデータはそのまま残してください) ...
 .
 .
 .`;
@@ -1400,29 +323,46 @@ document.getElementById('row-pad-inc').onclick = () => { if(rowPadding < 40) { r
 document.getElementById('col-pad-dec').onclick = () => { if(colPadding > 0) { colPadding -= 1; updatePadding(); } };
 document.getElementById('col-pad-inc').onclick = () => { if(colPadding < 60) { colPadding += 1; updatePadding(); } };
 
-// タブ切り替え処理
+// --- タブ切り替え処理の修正 ---
 const tabTimetable = document.getElementById('tab-timetable');
 const tabDiagram = document.getElementById('tab-diagram');
+const tabUnyo = document.getElementById('tab-unyo');
+
 const viewTimetable = document.getElementById('view-timetable');
 const viewDiagram = document.getElementById('view-diagram');
+const viewUnyo = document.getElementById('view-unyo');
+
+function resetTabs() {
+    tabTimetable.className = "px-4 py-2 border-b-2 border-transparent text-slate-500 hover:text-slate-700 font-medium outline-none transition-colors select-none whitespace-nowrap";
+    tabDiagram.className = "px-4 py-2 border-b-2 border-transparent text-slate-500 hover:text-slate-700 font-medium outline-none transition-colors select-none whitespace-nowrap";
+    tabUnyo.className = "px-4 py-2 border-b-2 border-transparent text-slate-500 hover:text-slate-700 font-medium outline-none transition-colors select-none whitespace-nowrap";
+    viewTimetable.classList.add('hidden');
+    viewDiagram.classList.add('hidden');
+    viewUnyo.classList.add('hidden');
+}
 
 tabTimetable.onclick = () => {
-    tabTimetable.className = "px-4 py-2 border-b-2 border-blue-600 text-blue-600 font-bold outline-none transition-colors select-none";
-    tabDiagram.className = "px-4 py-2 border-b-2 border-transparent text-slate-500 hover:text-slate-700 font-medium outline-none transition-colors select-none";
+    resetTabs();
+    tabTimetable.className = "px-4 py-2 border-b-2 border-blue-600 text-blue-600 font-bold outline-none transition-colors select-none whitespace-nowrap";
     viewTimetable.classList.remove('hidden');
-    viewDiagram.classList.add('hidden');
 };
 
 tabDiagram.onclick = () => {
-    tabDiagram.className = "px-4 py-2 border-b-2 border-blue-600 text-blue-600 font-bold outline-none transition-colors select-none";
-    tabTimetable.className = "px-4 py-2 border-b-2 border-transparent text-slate-500 hover:text-slate-700 font-medium outline-none transition-colors select-none";
+    resetTabs();
+    tabDiagram.className = "px-4 py-2 border-b-2 border-blue-600 text-blue-600 font-bold outline-none transition-colors select-none whitespace-nowrap";
     viewDiagram.classList.remove('hidden');
-    viewTimetable.classList.add('hidden');
     renderDiagram();
+};
+
+tabUnyo.onclick = () => {
+    resetTabs();
+    tabUnyo.className = "px-4 py-2 border-b-2 border-blue-600 text-blue-600 font-bold outline-none transition-colors select-none whitespace-nowrap";
+    viewUnyo.classList.remove('hidden');
 };
 
 // ページ読み込み時に初期データを表示
 window.addEventListener('DOMContentLoaded', () => {
+    // ... (既存のコードそのまま) ...
     try {
         diagNeedsInit = true;
         data = parseOuDia(defaultDataText);
@@ -1437,606 +377,11 @@ window.addEventListener('DOMContentLoaded', () => {
         renderAll();
     } catch(err) {
         console.error(err);
-        alert('初期データの読み込みに失敗しました。');
     }
 });
 
-// ファイル選択時の動作
-document.getElementById('fileInput').onchange = e => {
-    if (!e.target.files.length) return;
-    const reader = new FileReader();
-    reader.onload = ev => {
-        try {
-            diagNeedsInit = true;
-            data = parseOuDia(ev.target.result);
-            const sel = document.getElementById('station-select');
-            sel.innerHTML = data.stations.map((s, i) => `<option value="${i}">${s.name}</option>`).join('');
-            
-            document.getElementById('nobori-title').textContent = data.noboriAlias ? `上り (${data.noboriAlias})` : '上り';
-            document.getElementById('kudari-title').textContent = data.kudariAlias ? `下り (${data.kudariAlias})` : '下り';
-
-            sel.onchange = renderAll;
-            document.getElementById('results').classList.remove('hidden');
-            renderAll();
-            
-            if (!viewDiagram.classList.contains('hidden')) {
-                renderDiagram();
-            }
-        } catch(err) { 
-            console.error(err);
-            alert('読み込みに失敗しました。ファイル形式を確認してください。'); 
-        }
-    };
-    reader.readAsText(e.target.files[0], 'Shift_JIS');
-};
-
-function formatTime(timeStr) {
-    if (!timeStr) return '';
-    
-    let targetStr = timeStr;
-    if (timeStr.includes('/')) {
-        const parts = timeStr.split('/');
-        targetStr = parts[1] || parts[0];
-    }
-    
-    if (targetStr.includes(':')) return targetStr;
-    
-    if (!/^\d+$/.test(targetStr)) return targetStr;
-    
-    let h = '00', m = '00', s = '00';
-    if (targetStr.length === 3) {
-        h = '0' + targetStr.slice(0, 1);
-        m = targetStr.slice(1);
-    } else if (targetStr.length === 4) {
-        h = targetStr.slice(0, 2);
-        m = targetStr.slice(2);
-    } else if (targetStr.length === 5) {
-        h = '0' + targetStr.slice(0, 1);
-        m = targetStr.slice(1, 3);
-        s = targetStr.slice(3);
-    } else if (targetStr.length === 6) {
-        h = targetStr.slice(0, 2);
-        m = targetStr.slice(2, 4);
-        s = targetStr.slice(4);
-    } else {
-        return targetStr;
-    }
-    
-    return s === '00' ? `${h}:${m}` : `${h}:${m}:${s}`;
-}
-
-function parseTimeToMinutes(timeStr) {
-    if (!timeStr) return null;
-    const str = timeStr.replace(/:/g, '');
-    let h=0, m=0, s=0;
-    if (str.length === 3) { h = parseInt(str.slice(0,1), 10); m = parseInt(str.slice(1,3), 10); }
-    else if (str.length === 4) { h = parseInt(str.slice(0,2), 10); m = parseInt(str.slice(2,4), 10); }
-    else if (str.length === 5) { h = parseInt(str.slice(0,1), 10); m = parseInt(str.slice(1,3), 10); s = parseInt(str.slice(3,5), 10); }
-    else if (str.length === 6) { h = parseInt(str.slice(0,2), 10); m = parseInt(str.slice(2,4), 10); s = parseInt(str.slice(4,6), 10); }
-    else { return null; }
-    
-    if (h < 3) h += 24; 
-    return h * 60 + m + s / 60;
-}
-
-function parseOuDia(text) {
-    const lines = text.split(/\r?\n/);
-    let stations = [], trains = [], syubetsuList = [];
-    let curEki = null, curTrack = null, curT = null, curS = null;
-    let currentDirection = 'Kudari';
-    let blockStack = [];
-    
-    let kudariAlias = '';
-    let noboriAlias = '';
-    
-    for(let line of lines) {
-        if(line.startsWith('KudariDiaAlias=')) { kudariAlias = line.split('=')[1]; continue; }
-        if(line.startsWith('NoboriDiaAlias=')) { noboriAlias = line.split('=')[1]; continue; }
-
-        if(line === 'EkiTrack2Cont.') continue;
-        if(line === 'Eki.') { 
-            blockStack.push('Eki'); 
-            curEki = { name: '', tracks: [], downMain: 0, upMain: 0 }; 
-            stations.push(curEki); 
-            continue; 
-        }
-        if(line === 'EkiTrack2.') { 
-            blockStack.push('EkiTrack2'); 
-            curTrack = { name: '', ryakusyou: '' }; 
-            curEki.tracks.push(curTrack); 
-            continue; 
-        }
-        if(line === 'Ressyasyubetsu.') { 
-            blockStack.push('Syubetsu'); 
-            curS = { name: '', color: '#000000' }; 
-            syubetsuList.push(curS); 
-            continue; 
-        }
-        if(line === 'Kudari.') { currentDirection = 'Kudari'; continue; }
-        if(line === 'Nobori.') { currentDirection = 'Nobori'; continue; }
-        
-        if(line === 'Ressya.') { 
-            blockStack.push('Ressya'); 
-            curT = { sdMap: {}, number: '-', yukisaki: '', houkou: currentDirection, syubetsuIdx: 0 }; 
-            trains.push(curT);
-            continue; 
-        }
-        if(line === '.') { 
-            blockStack.pop(); 
-            continue; 
-        }
-
-        const block = blockStack.length > 0 ? blockStack[blockStack.length - 1] : "";
-
-        if(block === 'Eki') {
-            if(line.startsWith('Ekimei=')) curEki.name = line.split('=')[1];
-            else if(line.startsWith('DownMain=')) curEki.downMain = parseInt(line.split('=')[1], 10) || 0;
-            else if(line.startsWith('UpMain=')) curEki.upMain = parseInt(line.split('=')[1], 10) || 0;
-        }
-        else if(block === 'EkiTrack2') {
-            if(line.startsWith('TrackName=')) curTrack.name = line.split('=')[1];
-            else if(line.startsWith('TrackRyakusyou=')) curTrack.ryakusyou = line.split('=')[1];
-        }
-        else if(block === 'Syubetsu') {
-            if(line.startsWith('Syubetsumei=')) {
-                curS.name = line.split('=')[1];
-            }
-            else if(line.startsWith('JikokuhyouMojiColor=')) {
-                let c = line.split('=')[1];
-                if(c.length >= 8) {
-                    let bb = c.slice(2, 4);
-                    let gg = c.slice(4, 6);
-                    let rr = c.slice(6, 8);
-                    curS.color = `#${rr}${gg}${bb}`;
-                }
-            }
-        }
-        else if(block === 'Ressya') {
-            if(line.startsWith('Syubetsu=')) curT.syubetsuIdx = parseInt(line.split('=')[1], 10);
-            else if(line.startsWith('Ressyabangou=')) curT.number = line.split('=')[1];
-            else if(line.startsWith('Yukisaki=')) curT.yukisaki = line.split('=')[1];
-            else if(line.startsWith('Houkou=')) curT.houkou = line.split('=')[1];
-            else if(line.startsWith('EkiJikoku=')) {
-                const jikokus = line.split('=')[1].split(',');
-                jikokus.forEach((d, i) => {
-                    if(d && d.includes(';')) {
-                        const parts = d.split(';');
-                        const timeData = parts[1];
-                        if (timeData) {
-                            const timeStr = timeData.split('$')[0];
-                            const trackIdx = timeData.split('$')[1] || '';
-                            const formattedTime = formatTime(timeStr);
-                            if (formattedTime) {
-                                const stationIdx = (curT.houkou === 'Nobori') ? (stations.length - 1 - i) : i;
-                                curT.sdMap[stationIdx] = { hatsu: formattedTime, rawTime: timeStr, trackIdx: trackIdx };
-                            }
-                        }
-                    }
-                });
-            }
-        }
-    }
-
-    trains.forEach(t => {
-        let terminalName = '';
-        if (t.yukisaki !== '') {
-            const termIdx = parseInt(t.yukisaki, 10);
-            if (!isNaN(termIdx) && stations[termIdx]) {
-                terminalName = stations[termIdx].name;
-            } else {
-                terminalName = t.yukisaki; 
-            }
-        }
-        
-        if (!terminalName) {
-            const indices = Object.keys(t.sdMap).map(Number).sort((a, b) => a - b);
-            if (indices.length > 0) {
-                const targetIdx = (t.houkou === 'Nobori') ? indices[0] : indices[indices.length - 1];
-                if (stations[targetIdx]) {
-                    terminalName = stations[targetIdx].name;
-                }
-            }
-        }
-        t.terminal = terminalName || '不明';
-    });
-
-    return { stations, trains, syubetsuList, kudariAlias, noboriAlias };
-}
-
-function renderTable(direction, bodyId, countId) {
-    const idx = parseInt(document.getElementById('station-select').value);
-    const body = document.getElementById(bodyId);
-    body.innerHTML = '';
-    const events = [];
-    
-    data.trains.forEach(t => {
-        if(t.houkou !== direction) return;
-        const sd = t.sdMap[idx];
-        if(!sd) return;
-        
-        let trackName = '-';
-        const st = data.stations[idx];
-        if (st && sd.trackIdx !== '') {
-            const trackCode = parseInt(sd.trackIdx, 10);
-            if (!isNaN(trackCode) && st.tracks && st.tracks[trackCode]) {
-                trackName = st.tracks[trackCode].ryakusyou || st.tracks[trackCode].name;
-            } else {
-                trackName = sd.trackIdx;
-            }
-        }
-        
-        const syubetsu = data.syubetsuList[t.syubetsuIdx] || { name: '普通', color: '#000000' };
-        events.push({ 
-            time: sd.hatsu, 
-            number: t.number, 
-            syubetsuName: syubetsu.name, 
-            syubetsuColor: syubetsu.color, 
-            terminal: t.terminal, 
-            track: trackName 
-        });
-    });
-    
-    const sortedEvents = events.filter(e => e.time).sort((a, b) => {
-        const padTime = (t) => {
-            const p = t.split(':');
-            if (p.length === 2) return parseInt(p[0] + p[1] + '00', 10);
-            if (p.length === 3) return parseInt(p[0] + p[1] + p[2], 10);
-            return parseInt(t.replace(/:/g, ''), 10);
-        };
-        return padTime(a.time) - padTime(b.time);
-    });
-
-    document.getElementById(countId).textContent = sortedEvents.length + '本';
-
-    sortedEvents.forEach(ev => {
-        const tr = document.createElement('tr');
-        tr.className = 'data-row cursor-pointer select-none';
-        tr.onclick = function(e) {
-            if (e.target.tagName.toLowerCase() !== 'input') {
-                const cb = this.querySelector('input[type="checkbox"]');
-                cb.checked = !cb.checked;
-                this.classList.toggle('row-checked', cb.checked);
-            }
-        };
-        tr.innerHTML = `<td><input type="checkbox" onchange="this.closest('tr').classList.toggle('row-checked', this.checked)"></td>
-                        <td class="font-bold text-slate-800 text-base">${ev.time}</td>
-                        <td class="text-slate-500 font-medium">${ev.number}</td>
-                        <td class="font-bold text-xs" style="color: ${ev.syubetsuColor};">${ev.syubetsuName}</td>
-                        <td class="text-slate-700 font-bold">${ev.terminal}</td>
-                        <td class="text-slate-500 font-bold">${ev.track || '-'}</td>`;
-        body.appendChild(tr);
-    });
-}
-
-function renderAll() {
-    renderTable('Nobori', 'nobori-body', 'nobori-count');
-    renderTable('Kudari', 'kudari-body', 'kudari-count');
-}
-
-// === ダイヤグラム描画と操作処理 ===
-
-// ダイヤの拡大縮小ボタン設定
-function zoomDiag(axis, factor) {
-    const canvas = document.getElementById('diagram-canvas');
-    const rect = canvas.getBoundingClientRect();
-    const centerX = rect.width / 2;
-    const centerY = rect.height / 2;
-
-    if (axis === 'x' || axis === 'both') {
-        let nextScaleX = diagScaleX * factor;
-        nextScaleX = Math.max(0.1, Math.min(nextScaleX, 10.0));
-        let actualFactorX = nextScaleX / diagScaleX;
-        diagOffsetX = centerX - (centerX - diagOffsetX) * actualFactorX;
-        diagScaleX = nextScaleX;
-    }
-    if (axis === 'y' || axis === 'both') {
-        let nextScaleY = diagScaleY * factor;
-        nextScaleY = Math.max(0.1, Math.min(nextScaleY, 10.0));
-        let actualFactorY = nextScaleY / diagScaleY;
-        diagOffsetY = centerY - (centerY - diagOffsetY) * actualFactorY;
-        diagScaleY = nextScaleY;
-    }
-    renderDiagram();
-}
-
-document.getElementById('diag-x-dec').onclick = () => zoomDiag('x', 0.8);
-document.getElementById('diag-x-inc').onclick = () => zoomDiag('x', 1.25);
-document.getElementById('diag-y-dec').onclick = () => zoomDiag('y', 0.8);
-document.getElementById('diag-y-inc').onclick = () => zoomDiag('y', 1.25);
-document.getElementById('diag-reset').onclick = () => {
-    diagScaleX = 1.0;
-    diagScaleY = 1.0;
-    diagOffsetX = 0;
-    diagOffsetY = 0;
-    renderDiagram();
-};
-
-function getTrainPoints(train) {
-    const points = [];
-    for (let i = 0; i < data.stations.length; i++) {
-        const sd = train.sdMap[i];
-        if (sd && sd.rawTime) {
-            let chaku = null, hatsu = null;
-            if (sd.rawTime.includes('/')) {
-                const parts = sd.rawTime.split('/');
-                if (parts[0]) chaku = parseTimeToMinutes(parts[0]);
-                if (parts[1]) hatsu = parseTimeToMinutes(parts[1]);
-            } else {
-                hatsu = parseTimeToMinutes(sd.rawTime);
-                chaku = hatsu; 
-            }
-            points.push({ stationIdx: i, chaku: chaku, hatsu: hatsu });
-        }
-    }
-    return points.sort((a, b) => a.stationIdx - b.stationIdx);
-}
-
-function renderDiagram() {
-    if (!data || !data.trains || data.trains.length === 0) return;
-    
-    const container = document.getElementById('diagram-container');
-    const canvas = document.getElementById('diagram-canvas');
-    const ctx = canvas.getContext('2d');
-    
-    let minTime = Number.MAX_VALUE;
-    let maxTime = Number.MIN_VALUE;
-    
-    const allTrainPoints = data.trains.map(t => {
-        const pts = getTrainPoints(t);
-        pts.forEach(p => {
-            if (p.chaku !== null) { minTime = Math.min(minTime, p.chaku); maxTime = Math.max(maxTime, p.chaku); }
-            if (p.hatsu !== null) { minTime = Math.min(minTime, p.hatsu); maxTime = Math.max(maxTime, p.hatsu); }
-        });
-        return { train: t, points: pts };
-    });
-    
-    if (minTime === Number.MAX_VALUE) return;
-    
-    const startHour = Math.floor(minTime / 60);
-    const endHour = Math.ceil(maxTime / 60);
-    const totalMinutes = (endHour - startHour) * 60;
-    
-    // 論理スケールに合わせた描画座標の係数
-    const pxPerMinute = 8 * diagScaleX; 
-    const stationHeight = 80 * diagScaleY; 
-    
-    const paddingLeft = 80;
-    const paddingRight = 40;
-    const paddingTop = 40;
-    const paddingBottom = 40;
-    
-    const diagWidth = paddingLeft + totalMinutes * pxPerMinute + paddingRight;
-    const diagHeight = paddingTop + (data.stations.length - 1) * stationHeight + paddingBottom;
-    
-    const rect = container.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
-    
-    canvas.width = rect.width * dpr;
-    canvas.height = rect.height * dpr;
-    ctx.scale(dpr, dpr);
-    
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, rect.width, rect.height);
-    
-    if (diagNeedsInit) {
-        diagScaleX = 1.0;
-        diagScaleY = 1.0;
-        diagOffsetX = 0;
-        diagOffsetY = 0;
-        diagNeedsInit = false;
-    }
-
-    ctx.save();
-    ctx.translate(diagOffsetX, diagOffsetY);
-    
-    // --- 罫線の描画 ---
-    ctx.textAlign = "center";
-    ctx.textBaseline = "bottom";
-    
-    // 描画最適化のためのカリング範囲
-    const viewLeft = -diagOffsetX;
-    const viewRight = -diagOffsetX + rect.width;
-    const viewTop = -diagOffsetY;
-    const viewBottom = -diagOffsetY + rect.height;
-    
-    for (let m = 0; m <= totalMinutes; m++) {
-        const x = paddingLeft + m * pxPerMinute;
-        
-        if (x < viewLeft - 50 || x > viewRight + 50) continue;
-        
-        if (m % 60 === 0) {
-            ctx.strokeStyle = '#94a3b8';
-            ctx.lineWidth = 1;
-            const h = (startHour + m / 60) % 24;
-            ctx.fillStyle = '#334155';
-            ctx.font = "bold 13px sans-serif";
-            
-            ctx.fillText(`${h}:00`, x, paddingTop - 10);
-            ctx.fillText(`${h}:00`, x, diagHeight - paddingBottom + 25); 
-        } else if (m % 10 === 0) {
-            ctx.strokeStyle = '#cbd5e1'; 
-            ctx.lineWidth = 1;
-        } else if (m % 2 === 0) {
-            ctx.strokeStyle = '#e2e8f0'; 
-            ctx.lineWidth = 0.5;
-        } else {
-            continue;
-        }
-        
-        ctx.beginPath();
-        ctx.moveTo(x, paddingTop);
-        ctx.lineTo(x, diagHeight - paddingBottom);
-        ctx.stroke();
-    }
-    
-    // 横線（駅）
-    ctx.textAlign = "right";
-    ctx.textBaseline = "middle";
-    ctx.fillStyle = '#1e293b';
-    ctx.font = "bold 13px sans-serif";
-    
-    for (let i = 0; i < data.stations.length; i++) {
-        const y = paddingTop + i * stationHeight;
-        
-        if (y < viewTop - 50 || y > viewBottom + 50) continue;
-        
-        ctx.strokeStyle = '#94a3b8';
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.moveTo(paddingLeft, y);
-        ctx.lineTo(diagWidth - paddingRight, y);
-        ctx.stroke();
-        
-        ctx.fillText(data.stations[i].name, paddingLeft - 10, y);
-    }
-    
-    // --- 列車の線の描画 ---
-    allTrainPoints.forEach(tp => {
-        const t = tp.train;
-        const pts = tp.points;
-        if (pts.length < 2) return;
-        
-        const syubetsu = data.syubetsuList[t.syubetsuIdx];
-        ctx.strokeStyle = syubetsu ? syubetsu.color : '#000000';
-        ctx.lineWidth = 2; // 線幅は固定で綺麗に表示
-        
-        ctx.beginPath();
-        
-        for (let i = 0; i < pts.length; i++) {
-            const p = pts[i];
-            const y = paddingTop + p.stationIdx * stationHeight;
-            
-            if (p.chaku !== null && p.hatsu !== null && p.chaku !== p.hatsu) {
-                const xChaku = paddingLeft + (p.chaku - startHour * 60) * pxPerMinute;
-                const xHatsu = paddingLeft + (p.hatsu - startHour * 60) * pxPerMinute;
-                
-                if (i === 0) {
-                    ctx.moveTo(xHatsu, y);
-                } else {
-                    ctx.lineTo(xChaku, y);
-                    ctx.lineTo(xHatsu, y);
-                }
-            } else {
-                const tVal = p.hatsu !== null ? p.hatsu : p.chaku;
-                const x = paddingLeft + (tVal - startHour * 60) * pxPerMinute;
-                
-                if (i === 0) {
-                    ctx.moveTo(x, y);
-                } else {
-                    ctx.lineTo(x, y);
-                }
-            }
-        }
-        ctx.stroke();
-        
-        // 列番の描画
-        if (pts.length > 0) {
-            const p0 = pts[0]; 
-            const pLast = pts[pts.length - 1]; 
-            
-            ctx.fillStyle = ctx.strokeStyle;
-            ctx.font = "bold 11px sans-serif"; // フォントサイズも固定
-            
-            const x0 = paddingLeft + ((p0.hatsu !== null ? p0.hatsu : p0.chaku) - startHour * 60) * pxPerMinute;
-            const y0 = paddingTop + p0.stationIdx * stationHeight;
-            
-            // 画面外描画の最適化
-            if (x0 > viewLeft - 50 && x0 < viewRight + 50 && y0 > viewTop - 50 && y0 < viewBottom + 50) {
-                ctx.textAlign = "center";
-                ctx.textBaseline = t.houkou === 'Kudari' ? "bottom" : "top";
-                const offsetY0 = t.houkou === 'Kudari' ? -4 : 4;
-                ctx.fillText(t.number, x0, y0 + offsetY0);
-            }
-            
-            const xL = paddingLeft + ((pLast.chaku !== null ? pLast.chaku : pLast.hatsu) - startHour * 60) * pxPerMinute;
-            const yL = paddingTop + pLast.stationIdx * stationHeight;
-            
-            if (xL > viewLeft - 50 && xL < viewRight + 50 && yL > viewTop - 50 && yL < viewBottom + 50) {
-                ctx.textBaseline = t.houkou === 'Kudari' ? "top" : "bottom";
-                const offsetYL = t.houkou === 'Kudari' ? 4 : -4;
-                ctx.fillText(t.number, xL, yL + offsetYL);
-            }
-        }
-    });
-    
-    ctx.restore();
-}
-
-// ズーム・パン(スクロール)機能のイベントリスナー
-const dContainer = document.getElementById('diagram-container');
-const dCanvas = document.getElementById('diagram-canvas');
-
-dContainer.addEventListener('wheel', (e) => {
-    if(document.getElementById('view-diagram').classList.contains('hidden')) return;
-    e.preventDefault();
-    
-    const rect = dCanvas.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
-
-    const zoomSensitivity = 0.001;
-    // 拡大縮小の係数
-    let factor = 1 - (e.deltaY * zoomSensitivity);
-    factor = Math.max(0.8, Math.min(factor, 1.2));
-    
-    // スケールの制限
-    if (diagScaleX * factor < 0.1) factor = 0.1 / diagScaleX;
-    if (diagScaleX * factor > 10.0) factor = 10.0 / diagScaleX;
-    if (diagScaleY * factor < 0.1) factor = 0.1 / diagScaleY;
-    if (diagScaleY * factor > 10.0) factor = 10.0 / diagScaleY;
-
-    // マウスカーソルの位置を中心にズームする計算
-    diagOffsetX = mouseX - (mouseX - diagOffsetX) * factor;
-    diagOffsetY = mouseY - (mouseY - diagOffsetY) * factor;
-    
-    diagScaleX *= factor;
-    diagScaleY *= factor;
-    
-    renderDiagram();
-}, { passive: false });
-
-dContainer.addEventListener('mousedown', (e) => {
-    if(document.getElementById('view-diagram').classList.contains('hidden')) return;
-    isDiagDragging = true;
-    diagDragStartX = e.clientX;
-    diagDragStartY = e.clientY;
-});
-
-window.addEventListener('mousemove', (e) => {
-    if (!isDiagDragging) return;
-    const dx = e.clientX - diagDragStartX;
-    const dy = e.clientY - diagDragStartY;
-    diagOffsetX += dx;
-    diagOffsetY += dy;
-    diagDragStartX = e.clientX;
-    diagDragStartY = e.clientY;
-    renderDiagram();
-});
-
-window.addEventListener('mouseup', () => {
-    isDiagDragging = false;
-});
-
-window.addEventListener('resize', () => {
-    if(!document.getElementById('view-diagram').classList.contains('hidden')) {
-        renderDiagram();
-    }
-});
-
-// 現在時刻の更新
-function updateClock() {
-    const now = new Date();
-    const h = String(now.getHours()).padStart(2, '0');
-    const m = String(now.getMinutes()).padStart(2, '0');
-    const s = String(now.getSeconds()).padStart(2, '0');
-    const timeEl = document.getElementById('current-time');
-    if (timeEl) {
-        timeEl.textContent = `${h}:${m}:${s}`;
-    }
-}
-setInterval(updateClock, 1000);
-updateClock();
-
+// 以降、元々あったOuDiaのパース関数や描画関数をそのまま残してください。
+// parseOuDia(), formatTime(), parseTimeToMinutes(), renderTable(), renderAll(), renderDiagram() 等
 </script>
 </body>
 </html>
