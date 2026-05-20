@@ -18,7 +18,9 @@
     input[type="checkbox"] { width: 1.25rem; height: 1.25rem; cursor: pointer; accent-color: #2563eb; }
     
     /* ダイヤグラム用 */
-    .diagram-container { overflow: auto; height: calc(100vh - 250px); border: 1px solid #e2e8f0; border-radius: 0.5rem; background-color: #fff; position: relative; }
+    .diagram-container { overflow: hidden; height: calc(100vh - 300px); border: 1px solid #e2e8f0; border-radius: 0.5rem; background-color: #fff; position: relative; }
+    #diagram-canvas { cursor: grab; display: block; width: 100%; height: 100%; }
+    #diagram-canvas:active { cursor: grabbing; }
 </style>
 </head>
 <body class="bg-slate-100 p-2 md:p-4 text-slate-800">
@@ -114,6 +116,20 @@
         </div>
 
         <div id="view-diagram" class="hidden">
+            <div class="flex flex-wrap items-center gap-4 mb-2 bg-white px-4 py-2 rounded-lg shadow-sm border border-slate-200">
+                <div class="text-sm font-bold text-slate-700">ダイヤグラム操作</div>
+                <div class="flex items-center gap-1 bg-slate-50 px-2 py-1 rounded border border-slate-200">
+                    <span class="text-xs font-medium text-slate-500 mr-2">時間軸 (横)</span>
+                    <button id="diag-x-dec" class="px-2 py-0.5 bg-white border border-slate-300 rounded hover:bg-slate-100 active:bg-slate-200 text-slate-700 text-xs font-bold">縮小</button>
+                    <button id="diag-x-inc" class="px-2 py-0.5 bg-white border border-slate-300 rounded hover:bg-slate-100 active:bg-slate-200 text-slate-700 text-xs font-bold">拡大</button>
+                </div>
+                <div class="flex items-center gap-1 bg-slate-50 px-2 py-1 rounded border border-slate-200">
+                    <span class="text-xs font-medium text-slate-500 mr-2">駅間 (縦)</span>
+                    <button id="diag-y-dec" class="px-2 py-0.5 bg-white border border-slate-300 rounded hover:bg-slate-100 active:bg-slate-200 text-slate-700 text-xs font-bold">縮小</button>
+                    <button id="diag-y-inc" class="px-2 py-0.5 bg-white border border-slate-300 rounded hover:bg-slate-100 active:bg-slate-200 text-slate-700 text-xs font-bold">拡大</button>
+                </div>
+                <button id="diag-reset" class="px-3 py-1 bg-slate-700 border border-slate-800 rounded hover:bg-slate-600 active:bg-slate-800 text-white text-xs font-medium ml-auto">初期位置に戻す</button>
+            </div>
             <div class="diagram-container shadow-sm" id="diagram-container">
                 <canvas id="diagram-canvas"></canvas>
             </div>
@@ -1363,6 +1379,15 @@ let data = null;
 let rowPadding = 6;
 let colPadding = 8;
 
+let diagScaleX = 1.0;
+let diagScaleY = 1.0;
+let diagOffsetX = 0;
+let diagOffsetY = 0;
+let isDiagDragging = false;
+let diagDragStartX = 0;
+let diagDragStartY = 0;
+let diagNeedsInit = true;
+
 function updatePadding() {
     document.documentElement.style.setProperty('--row-padding', rowPadding + 'px');
     document.documentElement.style.setProperty('--col-padding', colPadding + 'px');
@@ -1399,6 +1424,7 @@ tabDiagram.onclick = () => {
 // ページ読み込み時に初期データを表示
 window.addEventListener('DOMContentLoaded', () => {
     try {
+        diagNeedsInit = true;
         data = parseOuDia(defaultDataText);
         const sel = document.getElementById('station-select');
         sel.innerHTML = data.stations.map((s, i) => `<option value="${i}">${s.name}</option>`).join('');
@@ -1421,6 +1447,7 @@ document.getElementById('fileInput').onchange = e => {
     const reader = new FileReader();
     reader.onload = ev => {
         try {
+            diagNeedsInit = true;
             data = parseOuDia(ev.target.result);
             const sel = document.getElementById('station-select');
             sel.innerHTML = data.stations.map((s, i) => `<option value="${i}">${s.name}</option>`).join('');
@@ -1478,7 +1505,6 @@ function formatTime(timeStr) {
     return s === '00' ? `${h}:${m}` : `${h}:${m}:${s}`;
 }
 
-// ダイヤ描画用: 時刻文字列を「分」に変換 (深夜帯も考慮)
 function parseTimeToMinutes(timeStr) {
     if (!timeStr) return null;
     const str = timeStr.replace(/:/g, '');
@@ -1489,7 +1515,7 @@ function parseTimeToMinutes(timeStr) {
     else if (str.length === 6) { h = parseInt(str.slice(0,2), 10); m = parseInt(str.slice(2,4), 10); s = parseInt(str.slice(4,6), 10); }
     else { return null; }
     
-    if (h < 3) h += 24; // OuDiaの一般的な仕様 (3時までは翌日扱い)
+    if (h < 3) h += 24; 
     return h * 60 + m + s / 60;
 }
 
@@ -1582,7 +1608,6 @@ function parseOuDia(text) {
                             const formattedTime = formatTime(timeStr);
                             if (formattedTime) {
                                 const stationIdx = (curT.houkou === 'Nobori') ? (stations.length - 1 - i) : i;
-                                // rawTime をダイヤ描画用に追加
                                 curT.sdMap[stationIdx] = { hatsu: formattedTime, rawTime: timeStr, trackIdx: trackIdx };
                             }
                         }
@@ -1688,7 +1713,44 @@ function renderAll() {
     renderTable('Kudari', 'kudari-body', 'kudari-count');
 }
 
-// === ダイヤグラム描画処理 ===
+// === ダイヤグラム描画と操作処理 ===
+
+// ダイヤの拡大縮小ボタン設定
+function zoomDiag(axis, factor) {
+    const canvas = document.getElementById('diagram-canvas');
+    const rect = canvas.getBoundingClientRect();
+    const centerX = rect.width / 2;
+    const centerY = rect.height / 2;
+
+    if (axis === 'x' || axis === 'both') {
+        let nextScaleX = diagScaleX * factor;
+        nextScaleX = Math.max(0.1, Math.min(nextScaleX, 10.0));
+        let actualFactorX = nextScaleX / diagScaleX;
+        diagOffsetX = centerX - (centerX - diagOffsetX) * actualFactorX;
+        diagScaleX = nextScaleX;
+    }
+    if (axis === 'y' || axis === 'both') {
+        let nextScaleY = diagScaleY * factor;
+        nextScaleY = Math.max(0.1, Math.min(nextScaleY, 10.0));
+        let actualFactorY = nextScaleY / diagScaleY;
+        diagOffsetY = centerY - (centerY - diagOffsetY) * actualFactorY;
+        diagScaleY = nextScaleY;
+    }
+    renderDiagram();
+}
+
+document.getElementById('diag-x-dec').onclick = () => zoomDiag('x', 0.8);
+document.getElementById('diag-x-inc').onclick = () => zoomDiag('x', 1.25);
+document.getElementById('diag-y-dec').onclick = () => zoomDiag('y', 0.8);
+document.getElementById('diag-y-inc').onclick = () => zoomDiag('y', 1.25);
+document.getElementById('diag-reset').onclick = () => {
+    diagScaleX = 1.0;
+    diagScaleY = 1.0;
+    diagOffsetX = 0;
+    diagOffsetY = 0;
+    renderDiagram();
+};
+
 function getTrainPoints(train) {
     const points = [];
     for (let i = 0; i < data.stations.length; i++) {
@@ -1706,7 +1768,6 @@ function getTrainPoints(train) {
             points.push({ stationIdx: i, chaku: chaku, hatsu: hatsu });
         }
     }
-    // 表示駅の順番にソート
     return points.sort((a, b) => a.stationIdx - b.stationIdx);
 }
 
@@ -1714,7 +1775,6 @@ function renderDiagram() {
     if (!data || !data.trains || data.trains.length === 0) return;
     
     const container = document.getElementById('diagram-container');
-    container.innerHTML = '<canvas id="diagram-canvas"></canvas>';
     const canvas = document.getElementById('diagram-canvas');
     const ctx = canvas.getContext('2d');
     
@@ -1732,56 +1792,72 @@ function renderDiagram() {
     
     if (minTime === Number.MAX_VALUE) return;
     
-    // 時間範囲の設定 (少し余裕を持たせる)
     const startHour = Math.floor(minTime / 60);
     const endHour = Math.ceil(maxTime / 60);
     const totalMinutes = (endHour - startHour) * 60;
     
-    // 描画設定パラメータ
-    const pxPerMinute = 8; // 1分あたりの横幅
-    const stationHeight = 80; // 駅間の縦幅
+    // 論理スケールに合わせた描画座標の係数
+    const pxPerMinute = 8 * diagScaleX; 
+    const stationHeight = 80 * diagScaleY; 
     
     const paddingLeft = 80;
     const paddingRight = 40;
     const paddingTop = 40;
     const paddingBottom = 40;
     
-    const canvasWidth = paddingLeft + totalMinutes * pxPerMinute + paddingRight;
-    const canvasHeight = paddingTop + (data.stations.length - 1) * stationHeight + paddingBottom;
+    const diagWidth = paddingLeft + totalMinutes * pxPerMinute + paddingRight;
+    const diagHeight = paddingTop + (data.stations.length - 1) * stationHeight + paddingBottom;
     
-    // 高解像度対応 (Retina等)
-    const scale = window.devicePixelRatio || 1;
-    canvas.width = canvasWidth * scale;
-    canvas.height = canvasHeight * scale;
-    canvas.style.width = canvasWidth + 'px';
-    canvas.style.height = canvasHeight + 'px';
-    ctx.scale(scale, scale);
+    const rect = container.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
     
-    // 背景を白に
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.scale(dpr, dpr);
+    
     ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+    ctx.fillRect(0, 0, rect.width, rect.height);
+    
+    if (diagNeedsInit) {
+        diagScaleX = 1.0;
+        diagScaleY = 1.0;
+        diagOffsetX = 0;
+        diagOffsetY = 0;
+        diagNeedsInit = false;
+    }
+
+    ctx.save();
+    ctx.translate(diagOffsetX, diagOffsetY);
     
     // --- 罫線の描画 ---
     ctx.textAlign = "center";
     ctx.textBaseline = "bottom";
     
-    // 縦線（時間）
+    // 描画最適化のためのカリング範囲
+    const viewLeft = -diagOffsetX;
+    const viewRight = -diagOffsetX + rect.width;
+    const viewTop = -diagOffsetY;
+    const viewBottom = -diagOffsetY + rect.height;
+    
     for (let m = 0; m <= totalMinutes; m++) {
         const x = paddingLeft + m * pxPerMinute;
         
+        if (x < viewLeft - 50 || x > viewRight + 50) continue;
+        
         if (m % 60 === 0) {
-            ctx.strokeStyle = '#94a3b8'; // 1時間ごと
+            ctx.strokeStyle = '#94a3b8';
             ctx.lineWidth = 1;
             const h = (startHour + m / 60) % 24;
             ctx.fillStyle = '#334155';
-            ctx.font = "bold 14px sans-serif";
+            ctx.font = "bold 13px sans-serif";
+            
             ctx.fillText(`${h}:00`, x, paddingTop - 10);
-            ctx.fillText(`${h}:00`, x, canvasHeight - paddingBottom + 20); // 下部にも表示
+            ctx.fillText(`${h}:00`, x, diagHeight - paddingBottom + 25); 
         } else if (m % 10 === 0) {
-            ctx.strokeStyle = '#cbd5e1'; // 10分ごと
+            ctx.strokeStyle = '#cbd5e1'; 
             ctx.lineWidth = 1;
         } else if (m % 2 === 0) {
-            ctx.strokeStyle = '#e2e8f0'; // 2分ごと
+            ctx.strokeStyle = '#e2e8f0'; 
             ctx.lineWidth = 0.5;
         } else {
             continue;
@@ -1789,7 +1865,7 @@ function renderDiagram() {
         
         ctx.beginPath();
         ctx.moveTo(x, paddingTop);
-        ctx.lineTo(x, canvasHeight - paddingBottom);
+        ctx.lineTo(x, diagHeight - paddingBottom);
         ctx.stroke();
     }
     
@@ -1797,19 +1873,20 @@ function renderDiagram() {
     ctx.textAlign = "right";
     ctx.textBaseline = "middle";
     ctx.fillStyle = '#1e293b';
-    ctx.font = "bold 14px sans-serif";
+    ctx.font = "bold 13px sans-serif";
     
     for (let i = 0; i < data.stations.length; i++) {
         const y = paddingTop + i * stationHeight;
+        
+        if (y < viewTop - 50 || y > viewBottom + 50) continue;
         
         ctx.strokeStyle = '#94a3b8';
         ctx.lineWidth = 1.5;
         ctx.beginPath();
         ctx.moveTo(paddingLeft, y);
-        ctx.lineTo(canvasWidth - paddingRight, y);
+        ctx.lineTo(diagWidth - paddingRight, y);
         ctx.stroke();
         
-        // 駅名テキスト
         ctx.fillText(data.stations[i].name, paddingLeft - 10, y);
     }
     
@@ -1821,7 +1898,7 @@ function renderDiagram() {
         
         const syubetsu = data.syubetsuList[t.syubetsuIdx];
         ctx.strokeStyle = syubetsu ? syubetsu.color : '#000000';
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 2; // 線幅は固定で綺麗に表示
         
         ctx.beginPath();
         
@@ -1830,7 +1907,6 @@ function renderDiagram() {
             const y = paddingTop + p.stationIdx * stationHeight;
             
             if (p.chaku !== null && p.hatsu !== null && p.chaku !== p.hatsu) {
-                // 停車時間がある場合 (着時刻 -> 発時刻 まで水平に線を引く)
                 const xChaku = paddingLeft + (p.chaku - startHour * 60) * pxPerMinute;
                 const xHatsu = paddingLeft + (p.hatsu - startHour * 60) * pxPerMinute;
                 
@@ -1841,7 +1917,6 @@ function renderDiagram() {
                     ctx.lineTo(xHatsu, y);
                 }
             } else {
-                // 通過または着発が同じ場合
                 const tVal = p.hatsu !== null ? p.hatsu : p.chaku;
                 const x = paddingLeft + (tVal - startHour * 60) * pxPerMinute;
                 
@@ -1856,29 +1931,97 @@ function renderDiagram() {
         
         // 列番の描画
         if (pts.length > 0) {
-            const p0 = pts[0]; // 始発駅
-            const pLast = pts[pts.length - 1]; // 終着駅
+            const p0 = pts[0]; 
+            const pLast = pts[pts.length - 1]; 
             
             ctx.fillStyle = ctx.strokeStyle;
-            ctx.font = "bold 11px sans-serif";
+            ctx.font = "bold 11px sans-serif"; // フォントサイズも固定
             
-            // 始発側に描画
             const x0 = paddingLeft + ((p0.hatsu !== null ? p0.hatsu : p0.chaku) - startHour * 60) * pxPerMinute;
             const y0 = paddingTop + p0.stationIdx * stationHeight;
-            ctx.textAlign = "center";
-            ctx.textBaseline = t.houkou === 'Kudari' ? "bottom" : "top";
-            const offsetY0 = t.houkou === 'Kudari' ? -4 : 4;
-            ctx.fillText(t.number, x0, y0 + offsetY0);
             
-            // 終着側にも描画
+            // 画面外描画の最適化
+            if (x0 > viewLeft - 50 && x0 < viewRight + 50 && y0 > viewTop - 50 && y0 < viewBottom + 50) {
+                ctx.textAlign = "center";
+                ctx.textBaseline = t.houkou === 'Kudari' ? "bottom" : "top";
+                const offsetY0 = t.houkou === 'Kudari' ? -4 : 4;
+                ctx.fillText(t.number, x0, y0 + offsetY0);
+            }
+            
             const xL = paddingLeft + ((pLast.chaku !== null ? pLast.chaku : pLast.hatsu) - startHour * 60) * pxPerMinute;
             const yL = paddingTop + pLast.stationIdx * stationHeight;
-            ctx.textBaseline = t.houkou === 'Kudari' ? "top" : "bottom";
-            const offsetYL = t.houkou === 'Kudari' ? 4 : -4;
-            ctx.fillText(t.number, xL, yL + offsetYL);
+            
+            if (xL > viewLeft - 50 && xL < viewRight + 50 && yL > viewTop - 50 && yL < viewBottom + 50) {
+                ctx.textBaseline = t.houkou === 'Kudari' ? "top" : "bottom";
+                const offsetYL = t.houkou === 'Kudari' ? 4 : -4;
+                ctx.fillText(t.number, xL, yL + offsetYL);
+            }
         }
     });
+    
+    ctx.restore();
 }
+
+// ズーム・パン(スクロール)機能のイベントリスナー
+const dContainer = document.getElementById('diagram-container');
+const dCanvas = document.getElementById('diagram-canvas');
+
+dContainer.addEventListener('wheel', (e) => {
+    if(document.getElementById('view-diagram').classList.contains('hidden')) return;
+    e.preventDefault();
+    
+    const rect = dCanvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+
+    const zoomSensitivity = 0.001;
+    // 拡大縮小の係数
+    let factor = 1 - (e.deltaY * zoomSensitivity);
+    factor = Math.max(0.8, Math.min(factor, 1.2));
+    
+    // スケールの制限
+    if (diagScaleX * factor < 0.1) factor = 0.1 / diagScaleX;
+    if (diagScaleX * factor > 10.0) factor = 10.0 / diagScaleX;
+    if (diagScaleY * factor < 0.1) factor = 0.1 / diagScaleY;
+    if (diagScaleY * factor > 10.0) factor = 10.0 / diagScaleY;
+
+    // マウスカーソルの位置を中心にズームする計算
+    diagOffsetX = mouseX - (mouseX - diagOffsetX) * factor;
+    diagOffsetY = mouseY - (mouseY - diagOffsetY) * factor;
+    
+    diagScaleX *= factor;
+    diagScaleY *= factor;
+    
+    renderDiagram();
+}, { passive: false });
+
+dContainer.addEventListener('mousedown', (e) => {
+    if(document.getElementById('view-diagram').classList.contains('hidden')) return;
+    isDiagDragging = true;
+    diagDragStartX = e.clientX;
+    diagDragStartY = e.clientY;
+});
+
+window.addEventListener('mousemove', (e) => {
+    if (!isDiagDragging) return;
+    const dx = e.clientX - diagDragStartX;
+    const dy = e.clientY - diagDragStartY;
+    diagOffsetX += dx;
+    diagOffsetY += dy;
+    diagDragStartX = e.clientX;
+    diagDragStartY = e.clientY;
+    renderDiagram();
+});
+
+window.addEventListener('mouseup', () => {
+    isDiagDragging = false;
+});
+
+window.addEventListener('resize', () => {
+    if(!document.getElementById('view-diagram').classList.contains('hidden')) {
+        renderDiagram();
+    }
+});
 
 // 現在時刻の更新
 function updateClock() {
