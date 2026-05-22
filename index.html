@@ -14,7 +14,14 @@
     .data-row td { padding: var(--row-padding, 6px) var(--col-padding, 8px); border-bottom: 1px solid #f1f5f9; text-align: center; vertical-align: middle; transition: background-color 0.1s; white-space: nowrap; }
     tr:nth-child(even) { background-color: #fafafa; }
     .data-row:hover { background-color: #f0fdf4; }
+    
+    /* 番線変更時のハイライト行 */
+    .row-modified td { background-color: #fef2f2 !important; transition: background-color 0.2s; }
+    .row-modified:hover td { background-color: #fee2e2 !important; }
+    
+    /* チェック済みの行（優先度を高くするため後に記述） */
     .row-checked td { opacity: 0.5; background-color: #f1f5f9 !important; text-decoration: line-through; }
+    
     input[type="checkbox"] { width: 1.25rem; height: 1.25rem; cursor: pointer; accent-color: #2563eb; }
     
     /* ダイヤグラム用 */
@@ -1921,6 +1928,13 @@ function renderTable(direction, bodyId, countId) {
     sortedEvents.forEach(ev => {
         const tr = document.createElement('tr');
         tr.className = 'data-row cursor-pointer select-none';
+        
+        // 番線が変更されている場合はハイライトクラスを付与
+        const isChanged = ev.track !== ev.originalTrack;
+        if (isChanged) {
+            tr.classList.add('row-modified');
+        }
+
         tr.onclick = function(e) {
             // テキストボックスやセレクトボックスのクリック時は行のチェック処理を発動させない
             if (e.target.tagName.toLowerCase() !== 'input' && e.target.tagName.toLowerCase() !== 'select') {
@@ -1955,7 +1969,6 @@ function renderTable(direction, bodyId, countId) {
                 extraOption = `<option value="${ev.track}" selected>${ev.track}</option>`;
             }
             
-            const isChanged = ev.track !== ev.originalTrack;
             const colorClass = isChanged ? 'text-red-600' : 'text-slate-700';
 
             trackCell = `<td>
@@ -1966,7 +1979,6 @@ function renderTable(direction, bodyId, countId) {
             </td>`;
         } else {
             // 下りなどはテキストで表示。変更されていれば赤色にする
-            const isChanged = ev.track !== ev.originalTrack;
             const trackClass = isChanged ? "text-red-600 font-bold" : "text-slate-500 font-bold";
             trackCell = `<td class="${trackClass}">${ev.track || '-'}</td>`;
         }
@@ -2023,13 +2035,17 @@ function renderTable(direction, bodyId, countId) {
                     if (!train.tempTrackMap) train.tempTrackMap = {};
                     train.tempTrackMap[stationIdx] = val;
                     
+                    const row = e.target.closest('tr');
+                    
                     // 見た目の色を即座に更新
                     if (val !== getTrackName(train, stationIdx)) {
                         e.target.classList.remove('text-slate-700');
                         e.target.classList.add('text-red-600');
+                        row.classList.add('row-modified');
                     } else {
                         e.target.classList.remove('text-red-600');
                         e.target.classList.add('text-slate-700');
+                        row.classList.remove('row-modified');
                     }
                     
                     // 下り列車へ連動して反映
