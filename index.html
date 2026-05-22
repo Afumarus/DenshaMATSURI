@@ -1694,7 +1694,7 @@ function parseOuDia(text) {
         
         if(line === 'Ressya.') { 
             blockStack.push('Ressya'); 
-            curT = { sdMap: {}, number: '-', yukisaki: '', houkou: currentDirection, syubetsuIdx: 0, carNumber: '' }; // carNumber追加
+            curT = { sdMap: {}, number: '-', yukisaki: '', houkou: currentDirection, syubetsuIdx: 0, carNumber: '', tempTrackMap: {} }; // carNumber, tempTrackMap追加
             trains.push(curT);
             continue; 
         }
@@ -1812,46 +1812,66 @@ function getStationTimeMinutes(train, stationIdx, type) {
     return parseTimeToMinutes(sd.rawTime);
 }
 
-// 車号の連動（上り→下り折り返し）ロジック
-function applyCarNumberLink(upTrain, stationIdx, carNumber) {
-    const upTrack = getTrackName(upTrain, stationIdx);
-    if (upTrack === '-') return;
+// 折り返し列車の特定を切り出し (車号と番線の連動に共通利用)
+function findTargetTurnaroundTrain(sourceTrain, stationIdx) {
+    // 基準となる列車の「元の所定番線」を取得して比較に使う
+    const sourceTrack = getTrackName(sourceTrain, stationIdx);
+    if (sourceTrack === '-') return null;
 
-    // 上り列車の「到着」時刻を基準にする（なければ発車時刻）
-    let upTime = getStationTimeMinutes(upTrain, stationIdx, 'chaku');
-    if (upTime === null) upTime = getStationTimeMinutes(upTrain, stationIdx, 'hatsu');
-    if (upTime === null) return;
+    let baseTime = getStationTimeMinutes(sourceTrain, stationIdx, 'chaku');
+    if (baseTime === null) baseTime = getStationTimeMinutes(sourceTrain, stationIdx, 'hatsu');
+    if (baseTime === null) return null;
 
-    let targetDownTrain = null;
+    // 上りに入力したなら下り、下りに入力したなら上りをターゲットにする
+    const targetDirection = sourceTrain.houkou === 'Nobori' ? 'Kudari' : 'Nobori';
+
+    let targetTrain = null;
     let minDiff = Infinity;
 
     data.trains.forEach(t => {
-        if (t.houkou !== 'Kudari') return;
+        if (t.houkou !== targetDirection) return;
         
-        // 同一ホーム(番線)かチェック
-        const downTrack = getTrackName(t, stationIdx);
-        if (downTrack !== upTrack) return;
+        const targetTrack = getTrackName(t, stationIdx);
+        if (targetTrack !== sourceTrack) return;
 
-        // 下り列車の「発車」時刻を基準にする（なければ到着時刻）
-        let downTime = getStationTimeMinutes(t, stationIdx, 'hatsu');
-        if (downTime === null) downTime = getStationTimeMinutes(t, stationIdx, 'chaku');
-        if (downTime === null) return;
+        let targetTime = getStationTimeMinutes(t, stationIdx, 'hatsu');
+        if (targetTime === null) targetTime = getStationTimeMinutes(t, stationIdx, 'chaku');
+        if (targetTime === null) return;
 
-        let diff = downTime - upTime;
-        // 日またぎの考慮（23:59到着 -> 00:01発車 など）
+        let diff = targetTime - baseTime;
         if (diff < -720) diff += 1440; 
         
-        // 上り到着時刻の2分後以降で最も近い下り列車を探す
         if (diff >= 2 && diff < minDiff) {
             minDiff = diff;
-            targetDownTrain = t;
+            targetTrain = t;
         }
     });
 
-    if (targetDownTrain) {
-        targetDownTrain.carNumber = carNumber;
-        // 下りのテーブルのみ再描画して反映
-        renderTable('Kudari', 'kudari-body', 'kudari-count');
+    return targetTrain;
+}
+
+// 車号の連動ロジック
+function applyCarNumberLink(sourceTrain, stationIdx, carNumber) {
+    const targetTrain = findTargetTurnaroundTrain(sourceTrain, stationIdx);
+    if (targetTrain) {
+        targetTrain.carNumber = carNumber;
+        const targetDirection = sourceTrain.houkou === 'Nobori' ? 'Kudari' : 'Nobori';
+        const targetBodyId = targetDirection === 'Nobori' ? 'nobori-body' : 'kudari-body';
+        const targetCountId = targetDirection === 'Nobori' ? 'nobori-count' : 'kudari-count';
+        renderTable(targetDirection, targetBodyId, targetCountId);
+    }
+}
+
+// 番線の連動ロジックを追加
+function applyTrackNumberLink(sourceTrain, stationIdx, trackNumber) {
+    const targetTrain = findTargetTurnaroundTrain(sourceTrain, stationIdx);
+    if (targetTrain) {
+        if (!targetTrain.tempTrackMap) targetTrain.tempTrackMap = {};
+        targetTrain.tempTrackMap[stationIdx] = trackNumber;
+        const targetDirection = sourceTrain.houkou === 'Nobori' ? 'Kudari' : 'Nobori';
+        const targetBodyId = targetDirection === 'Nobori' ? 'nobori-body' : 'kudari-body';
+        const targetCountId = targetDirection === 'Nobori' ? 'nobori-count' : 'kudari-count';
+        renderTable(targetDirection, targetBodyId, targetCountId);
     }
 }
 
@@ -1861,12 +1881,16 @@ function renderTable(direction, bodyId, countId) {
     body.innerHTML = '';
     const events = [];
     
+    const isShibasagi = data.stations[idx] && data.stations[idx].name === '芝鷺駅';
+    
     data.trains.forEach((t, index) => {
         if(t.houkou !== direction) return;
         const sd = t.sdMap[idx];
         if(!sd) return;
         
-        const trackName = getTrackName(t, idx);
+        const originalTrack = getTrackName(t, idx);
+        // tempTrackMap に一時変更された番線があればそれを採用する
+        const displayTrack = t.tempTrackMap && t.tempTrackMap[idx] ? t.tempTrackMap[idx] : originalTrack;
         
         const syubetsu = data.syubetsuList[t.syubetsuIdx] || { name: '普通', color: '#000000' };
         events.push({ 
@@ -1875,7 +1899,8 @@ function renderTable(direction, bodyId, countId) {
             syubetsuName: syubetsu.name, 
             syubetsuColor: syubetsu.color, 
             terminal: t.terminal, 
-            track: trackName,
+            originalTrack: originalTrack,
+            track: displayTrack,
             trainRef: t,
             trainIdx: index
         });
@@ -1897,8 +1922,8 @@ function renderTable(direction, bodyId, countId) {
         const tr = document.createElement('tr');
         tr.className = 'data-row cursor-pointer select-none';
         tr.onclick = function(e) {
-            // テキストボックスのクリック時は行のチェック処理を発動させない
-            if (e.target.tagName.toLowerCase() !== 'input') {
+            // テキストボックスやセレクトボックスのクリック時は行のチェック処理を発動させない
+            if (e.target.tagName.toLowerCase() !== 'input' && e.target.tagName.toLowerCase() !== 'select') {
                 const cb = this.querySelector('input[type="checkbox"]');
                 cb.checked = !cb.checked;
                 this.classList.toggle('row-checked', cb.checked);
@@ -1910,11 +1935,40 @@ function renderTable(direction, bodyId, countId) {
         if (direction === 'Nobori') {
             carNumCell = `<td><input type="text" class="car-num-input" value="${ev.trainRef.carNumber || ''}" data-train-idx="${ev.trainIdx}" placeholder="車号" maxlength="4"></td>`;
         } else {
-            // 下りは反映結果の表示用（値がなくても同じ高さの枠を置いて行の高さを揃える）
+            // 下りは反映結果の表示用
             const displayCarNum = ev.trainRef.carNumber 
                 ? `<span class="car-num-display font-mono text-blue-700 font-bold bg-blue-50 border border-blue-200 rounded shadow-sm">${ev.trainRef.carNumber}</span>` 
                 : `<span class="car-num-display"></span>`;
             carNumCell = `<td>${displayCarNum}</td>`;
+        }
+
+        // 番線セルの生成 (芝鷺駅の上りだけプルダウン)
+        let trackCell = '';
+        if (isShibasagi && direction === 'Nobori') {
+            const options = ['1', '2', '3', '4'].map(v => 
+                `<option value="${v}" ${ev.track === v ? 'selected' : ''}>${v}</option>`
+            ).join('');
+            
+            // 元の番線が 1〜4 以外の場合の対応 (例: '-' など)
+            let extraOption = '';
+            if (!['1', '2', '3', '4'].includes(ev.track)) {
+                extraOption = `<option value="${ev.track}" selected>${ev.track}</option>`;
+            }
+            
+            const isChanged = ev.track !== ev.originalTrack;
+            const colorClass = isChanged ? 'text-red-600' : 'text-slate-700';
+
+            trackCell = `<td>
+                <select class="track-select w-12 px-1 py-0.5 bg-white border border-slate-300 rounded text-center text-sm outline-none font-bold ${colorClass}" data-train-idx="${ev.trainIdx}">
+                    ${extraOption}
+                    ${options}
+                </select>
+            </td>`;
+        } else {
+            // 下りなどはテキストで表示。変更されていれば赤色にする
+            const isChanged = ev.track !== ev.originalTrack;
+            const trackClass = isChanged ? "text-red-600 font-bold" : "text-slate-500 font-bold";
+            trackCell = `<td class="${trackClass}">${ev.track || '-'}</td>`;
         }
 
         tr.innerHTML = `<td><input type="checkbox" onchange="this.closest('tr').classList.toggle('row-checked', this.checked)"></td>
@@ -1923,7 +1977,7 @@ function renderTable(direction, bodyId, countId) {
                         <td class="text-slate-500 font-medium">${ev.number}</td>
                         <td class="font-bold text-xs" style="color: ${ev.syubetsuColor};">${ev.syubetsuName}</td>
                         <td class="text-slate-700 font-bold">${ev.terminal}</td>
-                        <td class="text-slate-500 font-bold">${ev.track || '-'}</td>`;
+                        ${trackCell}`;
         body.appendChild(tr);
     });
 
@@ -1956,6 +2010,35 @@ function renderTable(direction, bodyId, countId) {
             // 行のクリックイベント（チェックボックス）への伝播を止める
             input.addEventListener('click', e => e.stopPropagation());
         });
+
+        // 番線セレクトボックスにイベントをバインド (芝鷺駅のみ)
+        if (isShibasagi) {
+            body.querySelectorAll('.track-select').forEach(select => {
+                select.addEventListener('change', (e) => {
+                    const val = e.target.value;
+                    const tIdx = parseInt(e.target.dataset.trainIdx, 10);
+                    const train = data.trains[tIdx];
+                    const stationIdx = parseInt(document.getElementById('station-select').value);
+                    
+                    if (!train.tempTrackMap) train.tempTrackMap = {};
+                    train.tempTrackMap[stationIdx] = val;
+                    
+                    // 見た目の色を即座に更新
+                    if (val !== getTrackName(train, stationIdx)) {
+                        e.target.classList.remove('text-slate-700');
+                        e.target.classList.add('text-red-600');
+                    } else {
+                        e.target.classList.remove('text-red-600');
+                        e.target.classList.add('text-slate-700');
+                    }
+                    
+                    // 下り列車へ連動して反映
+                    applyTrackNumberLink(train, stationIdx, val);
+                });
+                
+                select.addEventListener('click', e => e.stopPropagation());
+            });
+        }
     }
 }
 
